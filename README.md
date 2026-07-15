@@ -31,6 +31,12 @@ More detail:
 - [Deployment](docs/deployment.md)
 - [Testing](docs/testing.md)
 
+Design notes (not yet implemented):
+
+- [PACT Equity (v1 design)](docs/pact-equity.md) - revenue-first perpetual offering.
+- [PACT Note (v2 design)](docs/pact-note.md) - waterfall seniority and capped payouts.
+- [PACTCLANKER PRD](docs/pactclanker-prd.md) - stripped-down PACT, working draft.
+
 ## Local Development
 
 Use Node 22.15.1 or newer. With `asdf`:
