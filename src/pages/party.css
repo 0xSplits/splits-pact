@@ -85,7 +85,12 @@ body {
 .clock .decay b { color: var(--ink); }
 
 /* ---- deal + join (left column) ---- */
-.gets { color: var(--dim); font-size: 13.5px; line-height: 1.6; margin-bottom: 4px; }
+.gets { color: var(--dim); font-size: 13.5px; line-height: 1.6; }
+/* Check-marked fact lists (gets + mathbox) */
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.checks li { position: relative; padding-left: 21px; }
+.checks li::before { content: '✓'; position: absolute; left: 2px; color: var(--green); font-size: 13px; font-weight: 700; }
+.gets.checks { margin: 2px 0 6px; }
 
 .divider { border-top: 1px solid var(--edge); margin: 16px 0; }
 
