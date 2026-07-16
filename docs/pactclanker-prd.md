@@ -315,6 +315,49 @@ float against the dollar during the window. Mitigations: windows are short
 (days), and the UI shows live USD equivalents next to every ETH figure so
 backers still size in dollars mentally.
 
+#### DD-6: Sizing guardrail and vault shape — DECIDED
+
+The stress case that forced this: 10 ETH committed against a 10 ETH list
+price with a flat 5% vault. The party's average fill hits ~2.05x list, spot
+opens at ~4.2x, the party holds ~54% of supply (~46% float), and blended
+entry is ~1.86x — heavy overpay into a market that is mostly the party
+trading with itself. Break-even for that config is ~2.5 ETH; above it the
+party enters above list. And the damage is shared: everyone's blended price
+is pro-rata, so the marginal ETH dilutes every member including itself —
+members quietly want the party to stop growing, at war with the
+"bigger crowd = more holders = survival" force the design depends on.
+
+Two rules, both adopted:
+
+1. **Vault is a fixed multiple, not a fixed % of supply.** Bonus coins
+   scale with what the party buys ("every coin the party buys comes with a
+   matching bonus coin" at 1x). A flat % shrivels as the party grows (5%
+   flat = 0.55x effective bonus for a 1 ETH party, 0.10x at 10 ETH); a
+   fixed multiple divides the fill premium by (1 + multiple) at every size.
+   Cost: the vault's supply share floats — card copy handles it. (The
+   modeler already implements this shape; the flat-% framing in the early
+   wireframes is superseded.)
+2. **Creation-time validation: starting mcap ≥ ~2.5x the max raise.**
+   Locked at launch with the rest of the immutable config. This bounds the
+   worst case: blended entry stays ≤ list at max exactly when the fill
+   premium at max ≤ (1 + multiple) — with a 1x vault, mcap ≥ ~2.2x max
+   clears it, and 2.5x adds margin (10 ETH max on a 25 ETH list: fill
+   ~1.4x, spot ~2x, blended ~0.7x). A house rule, not a launcher knob.
+
+Two honesty notes recorded with the decision:
+
+- The fixed multiple alone does NOT pin blended entry below list at every
+  size — that claim only holds inside the guardrail. Absolute cost basis
+  rises with party size under any vault shape (the dev buy walks the
+  curve); the guardrail bounds it, nothing eliminates it.
+- The join-more incentive depends on the frame. Absolute ("you enter at
+  1.6x list") degrades as the party grows; relative to a TGE buyer
+  ("you pay 0.4x what the first outside buyer pays" =
+  1 / ((1 + multiple) x premium)) improves as the party grows, at every
+  size. The UI should show both, headline the relative number, and the
+  join card needs the live readout either way: "at the current 8 ETH,
+  this party enters at 1.6x list."
+
 ### Complexity budget
 
 These contracts will be mostly unaudited; simplicity is a design input, not
