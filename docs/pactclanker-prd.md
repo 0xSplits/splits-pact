@@ -132,17 +132,110 @@ withdrawn dollars lose theirs), and re-deposit restarts the clock. A
 withdrawer-then-redepositor is then exactly equivalent to a fresh depositor
 — weight can never exist without capital continuously backing it.
 
-Lock vs wipe-on-withdraw is therefore a product choice, not a security one:
+Lock vs wipe-on-withdraw is therefore a product choice, not a security one —
+see DD-1 below.
 
-- **Wipe-on-withdraw** (MetaDAO posture): backers keep an exit option if the
-  launch sours. Cost: early deposits are free options — a whale can park
-  capital early to manufacture momentum and pull it in the last block; the
-  weight wipes but the social proof already worked, and mid-raise totals
-  are soft signals.
-- **Lock**: every mid-raise number is real committed capital — unfakeable
-  demand signal, no last-block exodus — at the cost of backers wearing full
-  risk from deposit onward. Refunds only via the all-or-nothing failure
-  path.
+### Design decisions
+
+Mechanism design is being worked out in collaboration with Abram — DD-1 and
+DD-2 are the open collab items; DD-3 is a lean pending the same conversation.
+
+#### DD-1: Withdrawal policy — OPEN (leaning withdrawable)
+
+Both options are exploit-free; this is signal integrity vs backer optionality.
+
+**Withdrawable any time, wipe weight pro-rata on withdraw** (MetaDAO posture)
+
+- Pro: backers keep an exit option the whole window — can respond to new
+  information instead of being trapped by an early commitment.
+- Pro: lowers the psychological bar to depositing early, which is exactly
+  the behavior time-weighting wants to encourage.
+- Pro: matches a mechanism running live in production (MetaDAO), so the
+  behavioral dynamics are observable, not theoretical.
+- Con: early deposits are free options — a whale can park capital early to
+  manufacture momentum and pull it in the last block. The weight wipes, but
+  the social proof already worked.
+- Con: mid-raise totals are soft; the founder's demand signal is
+  provisional until the final block, and backers must monitor the sale
+  (MetaDAO's docs say as much).
+- Con: slightly more accounting (pro-rata wipe on partial withdraw), though
+  still O(1) per op.
+
+**Locked once deposited, refund only on failure**
+
+- Pro: every mid-raise number is real committed capital — unfakeable demand
+  signal, no last-block exodus, no monitoring burden.
+- Pro: simplest possible accounting (no withdraw path during the window).
+- Con: backers wear full risk from deposit onward; rational response is to
+  deposit late, which fights the time-weighting incentive head-on.
+- Con: harsher UX for exactly the early believers the mechanism is meant to
+  reward.
+
+Current lean: **withdrawable** — optionality for backers fits the crowdfund
+framing, and the momentum-theater risk is partially self-limiting (a
+last-block whale exit is visible onchain and torches the launcher's and
+whale's reputation with it).
+
+#### DD-2: Founder reserve vs pure fair launch — OPEN
+
+Can the founder reserve >0% of the token supply and/or fee-split units at
+announce time?
+
+- Pro: a reserved fee-split slice is **retained future profits — a
+  barterable asset**. The founder can later sell those units for capital,
+  which is literally what mainline PACT does; a PACTCLANKER launch with a
+  reserve manufactures the exact asset a future PACT raise sells. Clean
+  recursion between the two products.
+- Pro: ongoing founder alignment after launch — with 0% reserve the founder
+  has no economic reason to keep building once the LP is seeded.
+- Pro: honest about how teams actually fund work, vs pretending everyone is
+  a pari-passu backer.
+- Con: **breaks the fair-launch invariant.** "Everyone gets what their
+  time-weighted capital bought" is a clean story; any reserve reintroduces
+  insider allocation, and the optics matter in the clanker/memecoin context
+  where fair launch is the norm.
+- Con: reopens questions a 0% reserve deletes: vesting/lockup on the
+  reserve (unvested reserve = launch-dump risk), disclosure UX, and where
+  the line is (5%? 20%?).
+- Middle path worth exploring: reserve allowed but **fee-split units only,
+  not token supply** — founder gets no dumpable tokens, only a slice of the
+  perpetual revenue stream. Dump-proof by construction (LS units are the
+  claim; selling them is a visible cap-table event, PACT-style, not a
+  market sell).
+
+#### DD-3: Weight function — lean: linear dollar-seconds, no fill boost
+
+`accumulator += amount x elapsed_seconds`, share = accumulator / total.
+MetaDAO adds a fill boost (multiplier while the pool is sparse); we lean
+against it for v1: it's the bespoke, parameter-heavy part of their design
+(boost curve shape, sparsity measurement, path-dependence), and these
+contracts will ship unaudited — see "Complexity budget" below. Revisit if
+linear weighting demonstrably over-rewards block-one whales on long windows.
+
+### Complexity budget
+
+These contracts will be mostly unaudited; simplicity is a design input, not
+a nice-to-have. Ranked by risk:
+
+1. **The accumulator is NOT the risky part.** Per-user `(balance, accrued,
+   lastUpdate)` updated on every deposit/withdraw, plus the same three
+   fields globally, is the Synthetix StakingRewards / MasterChef accounting
+   shape — one of the most battle-tested patterns in DeFi. O(1) per
+   operation, no loops, ~50–100 lines. Wipe-on-withdraw adds one line
+   (`accrued -= accrued * amount / balance`).
+2. **finalize() is the risky part.** One transaction spanning three external
+   systems: Clanker factory (token deploy + locked LP), Uniswap (pairing),
+   and the Liquid Split factory (mint with full allocation arrays). Each
+   integration is someone else's interface changing under us.
+3. **Distribution mechanics.** Token payout must be claim-based (no loops
+   over depositors); the LS mint needs the full `accounts[]` +
+   `initAllocations[]` arrays in the finalize tx, so the depositor list
+   must be stored onchain and finalize gas grows with backer count
+   (bounded: LS quantization caps meaningful holders at 1000).
+
+What we deliberately do NOT build: fill boost (DD-3), oversubscription caps
+with partial refunds (MetaDAO has these; our all-or-nothing min is one bool),
+and any governance/futarchy machinery.
 
 ### Where the USDC goes
 
@@ -173,14 +266,9 @@ gets its own table, since the fork is structural, not a trim.
 
 ### Model B open questions
 
-- **Founder comp shape.** Fixed % of token supply, % of the fee split, or
-  both? Vesting/lock on the founder's tokens to prevent launch-dump?
-- **Lock vs wipe-on-withdraw.** See above — signal integrity vs backer
-  optionality. MetaDAO chose withdrawable; do we?
-- **Weight function.** Linear dollar-seconds is the simple default; does it
-  over-reward block-one deposits on long windows (first-hour whale gets ~2x
-  a mid-window depositor)? MetaDAO's fill boost (extra weight while the
-  pool is sparse) is an alternative shape worth considering.
+(Withdrawal policy, founder reserve, and weight function moved to Design
+decisions above.)
+
 - **Fee-split granularity.** LS quantizes to 0.1%; small backers may round
   to zero units on the fee split even though token distribution (18
   decimals) pays them fine. Dust rule needed; token-only for the long tail?
