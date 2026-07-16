@@ -78,7 +78,9 @@ function partyEcon(D) {
   };
 }
 
-// FLIP: rows spring to their new slot when the ranking changes.
+// FLIP: rows spring to their new slot when the ranking changes. The spring is
+// gated on data-rank (rendered order), not raw pixel position, so reflow from
+// the ticking numbers alone never causes micro-animations.
 function useFlip() {
   const containerRef = useRef(null);
   const positions = useRef(new Map());
@@ -88,14 +90,15 @@ function useFlip() {
     container.querySelectorAll('[data-flip]').forEach(el => {
       const key = el.dataset.flip;
       const now = el.getBoundingClientRect().top;
+      const rank = el.dataset.rank;
       const prev = positions.current.get(key);
-      if (prev != null && Math.abs(prev - now) > 1 && !reducedMotion()) {
+      if (prev != null && prev.rank !== rank && Math.abs(prev.top - now) > 1 && !reducedMotion()) {
         el.animate(
-          [{ transform: `translateY(${prev - now}px)` }, { transform: 'translateY(0)' }],
+          [{ transform: `translateY(${prev.top - now}px)` }, { transform: 'translateY(0)' }],
           { duration: 500, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
         );
       }
-      positions.current.set(key, now);
+      positions.current.set(key, { top: now, rank });
     });
   });
   return containerRef;
@@ -389,9 +392,10 @@ function Partiers({ party }) {
     withShare.forEach(r => prevSection.current.set(r.name, r.proj >= HOUSE.dustShare ? 'active' : 'dust'));
   });
   const justBumped = r => Date.now() - (bumpedAt.current.get(r.name) || 0) < 800;
-  const Row = ({ r, dim }) => (
+  const Row = ({ r, dim, rank }) => (
     <div
       data-flip={r.name}
+      data-rank={rank}
       className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}${dim && justBumped(r) ? ' just-bumped' : ''}`}
       title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}
     >
@@ -403,11 +407,11 @@ function Partiers({ party }) {
   return (
     <div className="card" ref={flipRef}>
       <h2>Party list</h2>
-      {active.map(r => <Row key={r.name} r={r} />)}
+      {active.map((r, i) => <Row key={r.name} r={r} rank={i} />)}
       {dust.length > 0 && (
         <>
-          <div className="rule" data-flip="__rule">refunded at close — under the dust bar</div>
-          {dust.map(r => <Row key={r.name} r={r} dim />)}
+          <div className="rule" data-flip="__rule" data-rank={active.length}>refunded at close — under the dust bar</div>
+          {dust.map((r, i) => <Row key={r.name} r={r} dim rank={active.length + 1 + i} />)}
         </>
       )}
     </div>
