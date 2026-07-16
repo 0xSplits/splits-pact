@@ -228,6 +228,10 @@ function Burst() {
 
 function FundingCard({ party, econ, amt, setAmt, onModel }) {
   const isIn = party.committedEth > 0;
+  // Live hero at full precision: integer+2dp at hero size, the spinning decimal
+  // tail smaller and dimmer so the ambient drift is visible without overflowing.
+  const liveP = (party.yourLiveShare * 100).toFixed(10);
+  const liveCut = liveP.indexOf('.') + 3;
   const floorUnits = Math.floor(party.floorShare * 1000);
   const dusty = party.yourWeight > 0 && floorUnits < 1;
   const [confirming, setConfirming] = useState(false);
@@ -247,7 +251,7 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
       <div className="divider" />
       {isIn && (
         <div className="stat-row" style={{ marginBottom: 12 }}>
-          <span className="stat hero"><b>{fmtPct(party.yourLiveShare)}</b><span>of the party — live weight</span><span>{fmtPct(party.yourShare)} at close{party.preview > 0 ? ' (previewing)' : ''}</span></span>
+          <span className="stat hero"><b>{liveP.slice(0, liveCut)}<small className="live-tail">{liveP.slice(liveCut)}%</small></b><span>of the party — live weight</span><span>{fmtPct(party.yourShare)} at close{party.preview > 0 ? ' (previewing)' : ''}</span></span>
           <span className="stat"><b>{fmtPct(party.floorShare)}</b><span>floor if it fills — only goes up</span></span>
           <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
         </div>
@@ -429,6 +433,13 @@ function App() {
     }), 200);
     return () => clearInterval(id);
   }, [playing]);
+  // Ambient drift: with the clock paused, keep nowT creeping forward (simulated
+  // pace) so the live-weight accumulator visibly ticks between arrivals.
+  useEffect(() => {
+    if (phase !== 'funding' || playing) return;
+    const id = setInterval(() => setNowT(t => Math.min(0.99, t + 0.000004)), 80);
+    return () => clearInterval(id);
+  }, [phase, playing]);
 
   const crowd = useMemo(() => genCrowd(nBackers, crowdTotal), [nBackers, crowdTotal]);
   const typing = phase === 'funding' ? Math.max(0, parseFloat(amt) || 0) : 0;

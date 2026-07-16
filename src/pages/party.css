@@ -149,6 +149,7 @@ body {
 .stat-row .stat span { font-size: 12px; color: var(--dim); }
 .stat-row .stat.hero > span { display: block; }
 .stat-row .stat.hero b { font-size: 34px; color: var(--blue); }
+.stat-row .stat.hero b .live-tail { font-size: 16px; font-weight: 700; color: var(--dimmer); font-variant-numeric: tabular-nums; }
 
 .note { font-size: 13px; color: var(--dim); margin-top: 10px; }
 .note b { color: var(--ink); font-variant-numeric: tabular-nums; }
