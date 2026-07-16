@@ -120,10 +120,24 @@ function useParty({ joined, previewEth, nowT, crowd }) {
   // into real weight 1:1 and leave it unchanged; yanks push it up.
   const floorShare = yourWeight > 0 ? yourWeight / (totalWeight + capacityLeft * (1 - nowT)) : 0;
 
+  // Three views of the same pledge, all coexisting:
+  //   · LIVE accrued weight = amount x max(0, nowT - tFrac). MetaDAO's
+  //     per-second accumulator — what you'd own if the party closed THIS second.
+  //     A just-arrived backer starts near 0 and climbs toward its at-close value.
+  //   · AT-CLOSE (projected) weight = amount x (1 - tFrac). Where live converges
+  //     as nowT -> 1; moves only when others join/yank. (yourShare above.)
+  //   · FLOOR = worst case if the party fills to the brim (floorShare above).
+  // A typed-but-uncommitted preview has NO live accrual — it isn't a position yet.
+  const liveWeightOf = p => p.eth * Math.max(0, nowT - p.tFrac);
+  const yourLive = pledges.reduce((s, p) => s + liveWeightOf(p), 0);
+  const crowdLive = present.reduce((s, p) => s + liveWeightOf(p), 0);
+  const totalLive = crowdLive + yourLive;
+  const yourLiveShare = totalLive > 0 ? yourLive / totalLive : 0;
+
   const commit = () => { if (preview > 0) setPledges(p => [...p, { eth: preview, tFrac: nowT }]); };
   const yank = () => setPledges([]);
 
-  return { present, pledges, committedEth, preview, yourEth, yourWeight, yourShare, floorShare, raised, room, capacityLeft, totalWeight, commit, yank };
+  return { present, pledges, committedEth, preview, yourEth, yourWeight, yourShare, floorShare, raised, room, capacityLeft, totalWeight, yourLive, totalLive, yourLiveShare, liveWeightOf, commit, yank };
 }
 
 function Clock({ phase, nowT }) {
@@ -229,7 +243,7 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
       <div className="divider" />
       {isIn && (
         <div className="stat-row" style={{ marginBottom: 12 }}>
-          <span className="stat hero"><b>{fmtPct(party.yourShare)}</b><span>of the party{party.preview > 0 ? ' (previewing)' : ''}</span></span>
+          <span className="stat hero"><b>{fmtPct(party.yourLiveShare)}</b><span>of the party — live weight</span><span>{fmtPct(party.yourShare)} at close{party.preview > 0 ? ' (previewing)' : ''}</span></span>
           <span className="stat"><b>{fmtPct(party.floorShare)}</b><span>floor if it fills — only goes up</span></span>
           <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
         </div>
@@ -325,12 +339,26 @@ function FailedCard({ party }) {
 
 function Partiers({ party }) {
   const flipRef = useFlip();
-  const rows = party.present.map(p => ({ ...p, weight: weightOf(p) }));
-  if (party.yourWeight > 0) rows.push({ name: 'you', you: true, preview: party.committedEth === 0, weight: party.yourWeight });
+  // Each row carries both weights: `weight` (at-close projection) and `live`
+  // (accrued so far). Committed rows DISPLAY and sort by live share — a fresh
+  // backer starts near 0% and climbs as the clock plays. The preview row keeps
+  // the projected share (a preview simulates the outcome, it isn't accruing).
+  // Dust ("refunded at close") is classified by projection either way, so a
+  // legit newcomer with tiny live share isn't wrongly binned as dust.
+  const rows = party.present.map(p => ({ ...p, weight: weightOf(p), live: party.liveWeightOf(p) }));
+  if (party.yourWeight > 0) {
+    const preview = party.committedEth === 0;
+    rows.push({ name: 'you', you: true, preview, weight: party.yourWeight, live: preview ? 0 : party.yourLive });
+  }
   const total = rows.reduce((s, r) => s + r.weight, 0);
-  const withShare = rows.map(r => ({ ...r, share: total > 0 ? r.weight / total : 0 })).sort((a, b) => b.share - a.share);
-  const active = withShare.filter(r => r.share >= HOUSE.dustShare);
-  const dust = withShare.filter(r => r.share < HOUSE.dustShare);
+  const totalLive = rows.reduce((s, r) => s + (r.preview ? 0 : r.live), 0);
+  const withShare = rows.map(r => {
+    const proj = total > 0 ? r.weight / total : 0;
+    const share = r.preview ? proj : (totalLive > 0 ? r.live / totalLive : 0);
+    return { ...r, proj, share };
+  }).sort((a, b) => b.share - a.share);
+  const active = withShare.filter(r => r.proj >= HOUSE.dustShare);
+  const dust = withShare.filter(r => r.proj < HOUSE.dustShare);
   const Row = ({ r, dim }) => (
     <div
       data-flip={r.name}
