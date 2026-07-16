@@ -366,24 +366,18 @@ function FailedCard({ party }) {
 
 function Partiers({ party }) {
   const flipRef = useFlip();
-  // Each row carries both weights: `weight` (at-close projection) and `live`
-  // (accrued so far). Committed rows DISPLAY and sort by live share — a fresh
-  // backer starts near 0% and climbs as the clock plays. The preview row keeps
-  // the projected share (a preview simulates the outcome, it isn't accruing).
-  // Dust ("refunded at close") is classified by projection either way, so a
-  // legit newcomer with tiny live share isn't wrongly binned as dust.
-  const rows = party.present.map(p => ({ ...p, weight: weightOf(p), live: party.liveWeightOf(p) }));
+  // Rows sort AND display by the at-close projected share for everyone (you
+  // included). Projections are locked at commit, so nothing here moves under
+  // the ambient tick — the list reshuffles only on real events (joins, yanks,
+  // previews). Dust ("refunded at close") is classified by the same projection.
+  const rows = party.present.map(p => ({ ...p, weight: weightOf(p) }));
   if (party.yourWeight > 0) {
     const preview = party.committedEth === 0;
-    rows.push({ name: 'you', you: true, preview, weight: party.yourWeight, live: preview ? 0 : party.yourLive });
+    rows.push({ name: 'you', you: true, preview, weight: party.yourWeight });
   }
   const total = rows.reduce((s, r) => s + r.weight, 0);
-  const totalLive = rows.reduce((s, r) => s + (r.preview ? 0 : r.live), 0);
-  const withShare = rows.map(r => {
-    const proj = total > 0 ? r.weight / total : 0;
-    const share = r.preview ? proj : (totalLive > 0 ? r.live / totalLive : 0);
-    return { ...r, proj, share };
-  }).sort((a, b) => b.share - a.share);
+  const withShare = rows.map(r => ({ ...r, proj: total > 0 ? r.weight / total : 0 }))
+    .sort((a, b) => b.proj - a.proj);
   const active = withShare.filter(r => r.proj >= HOUSE.dustShare);
   const dust = withShare.filter(r => r.proj < HOUSE.dustShare);
   // A row falling active → refunded gets a one-shot flash + 🥳→😭 beat: track
@@ -404,7 +398,7 @@ function Partiers({ party }) {
     >
       <span className="ava">{dim ? '😭' : r.you ? '🫵' : '🥳'}</span>
       <span className="who">{r.name}{r.you && <> <span className="badge you">{r.preview ? 'preview' : 'you'}</span></>}{r.launcher && <> <span className="badge">launcher</span></>}</span>
-      <span className="pct">{dim ? '0%' : fmtPct(r.share)}</span>
+      <span className="pct">{dim ? '0%' : fmtPct(r.proj)}</span>
     </div>
   );
   return (
