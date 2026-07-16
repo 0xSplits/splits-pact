@@ -97,8 +97,9 @@ just a deposit — it costs real money and buys the same thing it buys anyone.
 ```text
 1. announce()   founder/agent creates a LaunchPool: token params, window,
                 founder carve-out (% of token supply, % of fee split), min raise
-2. deposit()    backers lock USDC during the window. No withdrawals.
-                weight = amount x time-remaining-at-deposit
+2. deposit()    backers deposit USDC during the window; weight accrues
+                per second: accumulator += amount x elapsed_seconds.
+                withdraw() wipes accrued weight pro-rata (see below)
 3. finalize()   at close, if min met, atomically:
                   ├─ deploy Clanker token
                   ├─ pair pooled USDC + token supply into the LP (locked)
@@ -114,16 +115,34 @@ just a deposit — it costs real money and buys the same thing it buys anyone.
 A pure pro-rata pool is time-neutral: $1 buys the same share whenever it
 arrives, so rational backers wait until the last block and the founder gets
 no demand signal mid-raise. A bonding curve fixes that by charging late
-buyers a worse price. Time-weighting (à la MetaDAO) fixes it differently:
-early backers earn more weight per dollar, and the "price" they pay for that
-edge is the opportunity cost of capital locked longer — not a worse unit
-price. Deposits are locked once in (weight must stay backed by capital at
-close; withdrawable deposits would let someone accrue weight then pull the
-money). Refunds exist only on the all-or-nothing failure path, which is
-nearly free here since nothing exists until finalize.
+buyers a worse price. Time-weighting fixes it differently: early backers
+earn more weight per dollar, and the "price" they pay for that edge is the
+opportunity cost of committed capital — not a worse unit price.
 
-Weight function is an open choice; the default proposal is linear:
-`weight = amount x (closeTime - depositTime)`.
+This is how MetaDAO's launchpad works (verified against their docs):
+`accumulator += committed_amount x elapsed_seconds`, share =
+`your_accumulator / total_accumulator`, over a fixed (4-day) window, plus a
+**fill boost** that multiplies weight for deposits made while the pool was
+still sparse — rewarding early discovery, not just clock time. MetaDAO
+allows deposits and withdrawals until the last second.
+
+Withdrawals do NOT require locking to stay exploit-free. Rule: withdrawal
+wipes accrued weight pro-rata (each dollar carries its own history;
+withdrawn dollars lose theirs), and re-deposit restarts the clock. A
+withdrawer-then-redepositor is then exactly equivalent to a fresh depositor
+— weight can never exist without capital continuously backing it.
+
+Lock vs wipe-on-withdraw is therefore a product choice, not a security one:
+
+- **Wipe-on-withdraw** (MetaDAO posture): backers keep an exit option if the
+  launch sours. Cost: early deposits are free options — a whale can park
+  capital early to manufacture momentum and pull it in the last block; the
+  weight wipes but the social proof already worked, and mid-raise totals
+  are soft signals.
+- **Lock**: every mid-raise number is real committed capital — unfakeable
+  demand signal, no last-block exodus — at the cost of backers wearing full
+  risk from deposit onward. Refunds only via the all-or-nothing failure
+  path.
 
 ### Where the USDC goes
 
@@ -156,9 +175,12 @@ gets its own table, since the fork is structural, not a trim.
 
 - **Founder comp shape.** Fixed % of token supply, % of the fee split, or
   both? Vesting/lock on the founder's tokens to prevent launch-dump?
-- **Weight function.** Linear in time-remaining is the simple default; does
-  it over-reward block-one deposits on long windows (first-hour whale gets
-  ~2x a mid-window depositor)? Consider a capped or sublinear boost.
+- **Lock vs wipe-on-withdraw.** See above — signal integrity vs backer
+  optionality. MetaDAO chose withdrawable; do we?
+- **Weight function.** Linear dollar-seconds is the simple default; does it
+  over-reward block-one deposits on long windows (first-hour whale gets ~2x
+  a mid-window depositor)? MetaDAO's fill boost (extra weight while the
+  pool is sparse) is an alternative shape worth considering.
 - **Fee-split granularity.** LS quantizes to 0.1%; small backers may round
   to zero units on the fee split even though token distribution (18
   decimals) pays them fine. Dust rule needed; token-only for the long tail?
