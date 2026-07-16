@@ -2,38 +2,16 @@
 // Throwaway rainbow-dark styling (deliberately NOT the PACT app design system).
 // House rules follow the PRD: fixed-multiple vault (DD-6), mcap = 2.5x max
 // raise (DD-6), time-weighted shares (DD-3), dust bar 0.1% (DD-4), ETH (DD-5).
-// Typing an amount previews everything live: the raise bar, your row in the
-// partier list, and anyone your yolo would bump under the dust bar.
+//
+// Time mechanics, as the mock models them: a pledge's weight is locked at
+// commit (amount x window-remaining — equal to MetaDAO's accumulator measured
+// at close). Your share of the party therefore moves only when others join
+// (down) or yank (up). What DOES grow with the clock is your worst-case floor:
+// unfilled capacity can earn less weight every second, so the floor only ever
+// ratchets upward. The mock-state card has a clock scrubber to watch it.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './party.css';
-
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// FLIP: rows keep their identity and spring to their new slot when the
-// ranking changes — the "jump up the party list" moment.
-function useFlip() {
-  const containerRef = useRef(null);
-  const positions = useRef(new Map());
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const rows = container.querySelectorAll('[data-flip]');
-    rows.forEach(el => {
-      const key = el.dataset.flip;
-      const now = el.getBoundingClientRect().top;
-      const prev = positions.current.get(key);
-      if (prev != null && Math.abs(prev - now) > 1 && !reducedMotion()) {
-        el.animate(
-          [{ transform: `translateY(${prev - now}px)` }, { transform: 'translateY(0)' }],
-          { duration: 500, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
-        );
-      }
-      positions.current.set(key, now);
-    });
-  });
-  return containerRef;
-}
 
 const S = 1e9;
 const HOUSE = {
@@ -49,18 +27,21 @@ const HOUSE = {
   dustShare: 0.001,
 };
 
-const CROWD = [
-  { name: 'abram.eth', eth: 0.5, tFrac: 0.0, launcher: true },
-  { name: 'gerry.eth', eth: 1.2, tFrac: 0.2 },
-  { name: 'kae.eth', eth: 0.8, tFrac: 0.3 },
-  { name: 'mint.eth', eth: 0.65, tFrac: 0.45 },
-  { name: 'dot.eth', eth: 0.05, tFrac: 0.5 },
-  { name: 'ren.eth', eth: 0.006, tFrac: 0.1 },
-  { name: 'pip.eth', eth: 0.003, tFrac: 0.3 },
-];
+const NAMES = ['abram', 'gerry', 'kae', 'mint', 'dot', 'ren', 'pip', 'juno', 'flo', 'ossi', 'nadia', 'remy', 'sol', 'tulip', 'vera', 'wren', 'yuki', 'zorb', 'ida', 'bee', 'cosmo', 'dex', 'echo', 'lumi'];
+const rnd = i => ((((i + 13) * 2654435761) >>> 0) % 1000) / 1000;
 
-const NOW_T = 0.4; // "now" = day 1.6 of the 4-day window
-const pageLoad = Date.now();
+// Deterministic crowd: the launcher commits at t=0; everyone else arrives
+// spread through the window with skewed check sizes (few whales, many small).
+function genCrowd(n, totalEth) {
+  const weights = Array.from({ length: n }, (_, i) => 0.04 + rnd(i) * rnd(i) * 2.2);
+  const wSum = weights.reduce((s, w) => s + w, 0);
+  return weights.map((w, i) => ({
+    name: NAMES[i % NAMES.length] + (i >= NAMES.length ? i : '') + '.eth',
+    eth: totalEth * w / wSum,
+    tFrac: i === 0 ? 0 : rnd(i * 7) * 0.92,
+    launcher: i === 0,
+  }));
+}
 
 const weightOf = p => p.eth * (1 - p.tFrac);
 const fmtEth = v => (v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(3)) + ' ETH';
@@ -69,9 +50,9 @@ const fmtPct = v => {
   return (p < 10 && p % 1 ? p.toFixed(p < 1 ? 2 : 1) : p.toFixed(0)) + '%';
 };
 const fmtCoins = v => (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v.toFixed(0));
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Dev buy on the launch curve with a fixed-multiple vault (DD-6).
-// Constant-product approximation — same math as the modeler.
 function partyEcon(D) {
   const p0 = HOUSE.mcap / S;
   let v = 0, bought = 0;
@@ -91,52 +72,76 @@ function partyEcon(D) {
   };
 }
 
-// All weights, live: committed crowd + your committed pledges + your typed preview.
-function useParty(joined, previewEth) {
-  const [pledges, setPledges] = useState([]);
-  useEffect(() => { setPledges(joined ? [{ eth: 1, tFrac: 0.25 }] : []); }, [joined]);
+// FLIP: rows spring to their new slot when the ranking changes.
+function useFlip() {
+  const containerRef = useRef(null);
+  const positions = useRef(new Map());
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.querySelectorAll('[data-flip]').forEach(el => {
+      const key = el.dataset.flip;
+      const now = el.getBoundingClientRect().top;
+      const prev = positions.current.get(key);
+      if (prev != null && Math.abs(prev - now) > 1 && !reducedMotion()) {
+        el.animate(
+          [{ transform: `translateY(${prev - now}px)` }, { transform: 'translateY(0)' }],
+          { duration: 500, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
+        );
+      }
+      positions.current.set(key, now);
+    });
+  });
+  return containerRef;
+}
 
+// Party state at simulated time nowT: only crowd members who have already
+// arrived exist; preview weight is priced at nowT.
+function useParty({ joined, previewEth, nowT, crowd }) {
+  const [pledges, setPledges] = useState([]);
+  useEffect(() => { setPledges(joined ? [{ eth: 1, tFrac: 0.1 }] : []); }, [joined]);
+
+  const present = crowd.filter(p => p.tFrac <= nowT);
   const committedEth = pledges.reduce((s, p) => s + p.eth, 0);
-  const crowdEth = CROWD.reduce((s, p) => s + p.eth, 0);
+  const crowdEth = present.reduce((s, p) => s + p.eth, 0);
   const room = Math.max(0, HOUSE.max - crowdEth - committedEth);
   const preview = Math.min(Math.max(0, previewEth || 0), room);
 
-  const yourWeight = pledges.reduce((s, p) => s + weightOf(p), 0) + preview * (1 - NOW_T);
-  const crowdWeight = CROWD.reduce((s, p) => s + weightOf(p), 0);
+  const yourWeight = pledges.reduce((s, p) => s + weightOf(p), 0) + preview * (1 - nowT);
+  const crowdWeight = present.reduce((s, p) => s + weightOf(p), 0);
   const totalWeight = crowdWeight + yourWeight;
   const yourEth = committedEth + preview;
   const raised = crowdEth + yourEth;
 
   const yourShare = totalWeight > 0 ? yourWeight / totalWeight : 0;
   const capacityLeft = Math.max(0, HOUSE.max - raised);
-  // Floor: the rest of the max arrives this instant at full remaining weight.
-  const floorShare = yourWeight > 0 ? yourWeight / (totalWeight + capacityLeft * (1 - NOW_T)) : 0;
+  // The ratchet: unfilled capacity earns (1 - nowT) weight per ETH, so this
+  // number can only rise as the clock runs — joins convert reserved weight
+  // into real weight 1:1 and leave it unchanged; yanks push it up.
+  const floorShare = yourWeight > 0 ? yourWeight / (totalWeight + capacityLeft * (1 - nowT)) : 0;
 
-  const commit = () => { if (preview > 0) setPledges(p => [...p, { eth: preview, tFrac: NOW_T }]); };
+  const commit = () => { if (preview > 0) setPledges(p => [...p, { eth: preview, tFrac: nowT }]); };
   const yank = () => setPledges([]);
 
-  return { pledges, committedEth, preview, yourEth, yourWeight, yourShare, floorShare, raised, room, capacityLeft, totalWeight, commit, yank };
+  return { present, pledges, committedEth, preview, yourEth, yourWeight, yourShare, floorShare, raised, room, capacityLeft, totalWeight, commit, yank };
 }
 
-function Countdown({ phase }) {
-  const [, tick] = useState(0);
-  useEffect(() => { const id = setInterval(() => tick(n => n + 1), 1000); return () => clearInterval(id); }, []);
+function Clock({ phase, nowT }) {
   if (phase !== 'funding') {
     const label = { closing: 'window over — goal met, waiting on launch', launched: 'launched — streams running, fees flowing', failed: 'goal missed — refunds open' }[phase];
     return <div className="clock">{label}</div>;
   }
-  const remainMs = (1 - NOW_T) * HOUSE.windowDays * 86400e3 - (Date.now() - pageLoad);
-  const s = Math.max(0, Math.floor(remainMs / 1000));
-  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  const remainDays = (1 - nowT) * HOUSE.windowDays;
+  const d = Math.floor(remainDays), h = Math.floor((remainDays - d) * 24), m = Math.floor((((remainDays - d) * 24) - h) * 60);
   return (
     <div className="clock">
-      <span className="time">{d}d {String(h).padStart(2, '0')}h {String(m).padStart(2, '0')}m {String(s % 60).padStart(2, '0')}s</span> left
-      <span className="decay"> · 1 ETH now = <b>{(1 - NOW_T).toFixed(2)}</b> weight</span>
+      <span className="time">{d}d {String(h).padStart(2, '0')}h {String(m).padStart(2, '0')}m</span> left
+      <span className="decay"> · 1 ETH now = <b>{(1 - nowT).toFixed(2)}</b> weight</span>
     </div>
   );
 }
 
-function TokenCard({ phase, party }) {
+function TokenCard({ phase, party, nowT }) {
   const crowdFrac = (party.raised - party.yourEth) / HOUSE.max;
   const youCommittedFrac = party.committedEth / HOUSE.max;
   const youPreviewFrac = party.preview / HOUSE.max;
@@ -146,7 +151,7 @@ function TokenCard({ phase, party }) {
         <div className="icon">{HOUSE.icon}</div>
         <div>
           <div className="ticker">{HOUSE.ticker}</div>
-          <div className="sub">a vanilla Clanker coin — nobody is paid</div>
+          <div className="sub">a vanilla Clanker coin, launched by its crowd</div>
         </div>
       </div>
       <div className="bar">
@@ -159,7 +164,7 @@ function TokenCard({ phase, party }) {
         <span><b>{fmtEth(party.raised)}</b>{party.yourEth > 0 && <span className="you-amt"> · {fmtEth(party.yourEth)} you</span>}</span>
         <span>max {HOUSE.max} ETH</span>
       </div>
-      <Countdown phase={phase} />
+      <Clock phase={phase} nowT={nowT} />
     </div>
   );
 }
@@ -180,7 +185,7 @@ function MathBox({ party, econ, onModel }) {
       <span>Lists at <b>{HOUSE.mcap} ETH</b> mcap — house rule: always 2.5x the {HOUSE.max} ETH max, so a full party still enters under list.</span>
       <span>Enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a launch-day buyer's price.</span>
       <span>Party holds <b>{fmtPct(econ.partyShare)}</b> of supply; <b>{fmtPct(1 - econ.partyShare)}</b> stays in the market.</span>
-      {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units).</span>}
+      {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units) — this only ever goes up while you're in.</span>}
     </div>
   );
 }
@@ -225,15 +230,18 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
       {isIn && (
         <div className="stat-row" style={{ marginBottom: 12 }}>
           <span className="stat hero"><b>{fmtPct(party.yourShare)}</b><span>of the party{party.preview > 0 ? ' (previewing)' : ''}</span></span>
-          <span className="stat"><b>{fmtPct(party.floorShare)}</b><span>floor if it fills</span></span>
+          <span className="stat"><b>{fmtPct(party.floorShare)}</b><span>floor if it fills — only goes up</span></span>
           <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
         </div>
       )}
       <div className="join-row">
-        <input inputMode="decimal" placeholder={isIn ? 'yolo more' : 'how much?'} value={amt}
-          onChange={e => setAmt(e.target.value)} aria-label="Amount in ETH" />
+        <span className="inwrap">
+          <input inputMode="decimal" placeholder={isIn ? 'back more' : 'how much?'} value={amt}
+            onChange={e => setAmt(e.target.value)} aria-label="Amount in ETH" />
+          {amt !== '' && <span className="suffix" aria-hidden="true">ETH</span>}
+        </span>
         <button className={`btn yolo${party.preview > 0 && !dusty ? ' armed' : ''}`} onClick={yolo} disabled={party.preview <= 0 || dusty}>
-          Yolo
+          Back
           {party.preview > 0 && !dusty && <><span className="sp s1" aria-hidden="true">✨</span><span className="sp s2" aria-hidden="true">✨</span></>}
         </button>
         {burst > 0 && <Burst key={burst} />}
@@ -273,7 +281,7 @@ function LaunchedCard({ party }) {
   const daysSince = 2.1 + (Date.now() - pageLoad) / 86400e3;
   const bFrac = Math.min(1, daysSince / HOUSE.boughtStreamDays);
   const vFrac = Math.min(1, daysSince / HOUSE.bonusStreamDays);
-  const feesTotal = 0.31; // mock: ETH of fees the party has earned so far
+  const feesTotal = 0.31; // mock: ETH of launcher fees the party has earned
   return (
     <div className="card">
       <h2>Your side of the launch</h2>
@@ -298,6 +306,7 @@ function LaunchedCard({ party }) {
     </div>
   );
 }
+const pageLoad = Date.now();
 
 function FailedCard({ party }) {
   if (party.committedEth <= 0) {
@@ -316,7 +325,7 @@ function FailedCard({ party }) {
 
 function Partiers({ party }) {
   const flipRef = useFlip();
-  const rows = CROWD.map(p => ({ ...p, weight: weightOf(p) }));
+  const rows = party.present.map(p => ({ ...p, weight: weightOf(p) }));
   if (party.yourWeight > 0) rows.push({ name: 'you', you: true, preview: party.committedEth === 0, weight: party.yourWeight });
   const total = rows.reduce((s, r) => s + r.weight, 0);
   const withShare = rows.map(r => ({ ...r, share: total > 0 ? r.weight / total : 0 })).sort((a, b) => b.share - a.share);
@@ -371,11 +380,27 @@ function App() {
   const initialPhase = PHASES.some(([k]) => k === params.get('state')) ? params.get('state') : 'funding';
   const [phase, setPhase] = useState(initialPhase);
   const [joined, setJoined] = useState(params.get('you') === 'joined');
-  const [amt, setAmt] = useState(params.get('yolo') || '');
+  const [amt, setAmt] = useState(params.get('back') || params.get('yolo') || '');
   const [modeling, setModeling] = useState(false);
 
+  // Simulation controls (mock-state card)
+  const [nBackers, setNBackers] = useState(7);
+  const [crowdTotal, setCrowdTotal] = useState(3.2);
+  const [nowT, setNowT] = useState(0.4);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    if (!playing) return;
+    const id = setInterval(() => setNowT(t => {
+      const next = Math.min(0.99, t + 0.01);
+      if (next >= 0.99) setPlaying(false);
+      return next;
+    }), 200);
+    return () => clearInterval(id);
+  }, [playing]);
+
+  const crowd = useMemo(() => genCrowd(nBackers, crowdTotal), [nBackers, crowdTotal]);
   const typing = phase === 'funding' ? Math.max(0, parseFloat(amt) || 0) : 0;
-  const party = useParty(joined, typing);
+  const party = useParty({ joined, previewEth: typing, nowT: phase === 'funding' ? nowT : 1, crowd });
   const econ = useMemo(() => partyEcon(party.raised), [party.raised]);
 
   return (
@@ -383,7 +408,7 @@ function App() {
       <div className="pc-title"><span className="hue">Party</span>Clanker</div>
 
       {phase === 'closing' && (
-        <div className="banner glow">
+        <div className="banner">
           <b>Goal met, window over.</b> Anyone can pull the trigger — one transaction launches everything.
           <div style={{ marginTop: 10 }}><button className="btn">Launch the party 🎉</button></div>
         </div>
@@ -396,7 +421,7 @@ function App() {
           {phase === 'failed' && <FailedCard party={party} />}
         </div>
         <div className="pc-col right">
-          <TokenCard phase={phase} party={party} />
+          <TokenCard phase={phase} party={party} nowT={nowT} />
           <Partiers party={party} />
         </div>
       </div>
@@ -417,7 +442,16 @@ function App() {
         </div>
         <div className="sect pills">
           <button className={`pill${!joined ? ' on' : ''}`} onClick={() => setJoined(false)}>fresh</button>
-          <button className={`pill${joined ? ' on' : ''}`} onClick={() => setJoined(true)}>joined day 1</button>
+          <button className={`pill${joined ? ' on' : ''}`} onClick={() => setJoined(true)}>joined early</button>
+        </div>
+        <label className="sect slider"><span>backers <b>{nBackers}</b></span>
+          <input type="range" min="2" max="40" step="1" value={nBackers} onChange={e => setNBackers(+e.target.value)} /></label>
+        <label className="sect slider"><span>crowd <b>{crowdTotal.toFixed(1)} ETH</b></span>
+          <input type="range" min="0.2" max="9.5" step="0.1" value={crowdTotal} onChange={e => setCrowdTotal(+e.target.value)} /></label>
+        <label className="sect slider"><span>clock <b>day {(nowT * HOUSE.windowDays).toFixed(1)}/{HOUSE.windowDays}</b></span>
+          <input type="range" min="0" max="99" step="1" value={Math.round(nowT * 100)} onChange={e => { setPlaying(false); setNowT(+e.target.value / 100); }} /></label>
+        <div className="sect pills">
+          <button className={`pill${playing ? ' on' : ''}`} onClick={() => setPlaying(p => !p)}>{playing ? '⏸ pause' : '▶ play the clock'}</button>
         </div>
       </div>
     </>

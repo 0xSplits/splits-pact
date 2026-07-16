@@ -84,9 +84,14 @@ body {
 .divider { border-top: 1px solid var(--edge); margin: 16px 0; }
 
 .join-row { display: flex; gap: 10px; align-items: stretch; position: relative; }
+.join-row .inwrap { flex: 1; min-width: 0; position: relative; display: flex; }
+.join-row .suffix {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--dim); font-weight: 800; font-size: 14px; pointer-events: none;
+}
 .join-row input {
-  flex: 1; min-width: 0; font: inherit; font-weight: 800; font-size: 17px;
-  padding: 12px 16px; border-radius: var(--r-md);
+  flex: 1; width: 100%; min-width: 0; font: inherit; font-weight: 800; font-size: 17px;
+  padding: 12px 52px 12px 16px; border-radius: var(--r-md);
   background: var(--card-2); border: 1px solid var(--edge); color: var(--ink);
   font-variant-numeric: tabular-nums;
   transition: border-color 0.2s ease, transform 0.3s var(--spring);
@@ -237,6 +242,10 @@ body {
 }
 .pill.on { background: #fff; color: #101018; border-color: #fff; }
 .devcard .sect { margin-top: 8px; }
+.devcard .slider { display: block; }
+.devcard .slider span { display: flex; justify-content: space-between; margin-bottom: 2px; }
+.devcard .slider b { color: var(--dim); font-variant-numeric: tabular-nums; }
+.devcard .slider input { width: 100%; accent-color: var(--blue); height: 14px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
