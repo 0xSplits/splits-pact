@@ -278,6 +278,10 @@ nothing from any of the three legs. Three interlocking rules:
   weight) — the dust refund is the guarantee; the floor just reduces how
   often it fires.
 
+Edge case: the min-raise check must apply **net of dust refunds** — a pool
+that clears the minimum gross could fall below it after the dust pass, and
+launching on the gross number would launch a raise that "failed."
+
 Open params: the cap size per template, the floor formula, and whether the
 dust threshold is exactly 1 unit or slightly above.
 
