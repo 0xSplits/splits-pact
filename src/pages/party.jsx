@@ -4,9 +4,36 @@
 // raise (DD-6), time-weighted shares (DD-3), dust bar 0.1% (DD-4), ETH (DD-5).
 // Typing an amount previews everything live: the raise bar, your row in the
 // partier list, and anyone your yolo would bump under the dust bar.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './party.css';
+
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// FLIP: rows keep their identity and spring to their new slot when the
+// ranking changes — the "jump up the party list" moment.
+function useFlip() {
+  const containerRef = useRef(null);
+  const positions = useRef(new Map());
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rows = container.querySelectorAll('[data-flip]');
+    rows.forEach(el => {
+      const key = el.dataset.flip;
+      const now = el.getBoundingClientRect().top;
+      const prev = positions.current.get(key);
+      if (prev != null && Math.abs(prev - now) > 1 && !reducedMotion()) {
+        el.animate(
+          [{ transform: `translateY(${prev - now}px)` }, { transform: 'translateY(0)' }],
+          { duration: 500, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
+        );
+      }
+      positions.current.set(key, now);
+    });
+  });
+  return containerRef;
+}
 
 const S = 1e9;
 const HOUSE = {
@@ -164,12 +191,38 @@ function MathBox({ party, econ, onModel }) {
   );
 }
 
+const BURST_EMOJI = ['🎉', '🎈', '✨', '🥳', '🎊'];
+function Burst() {
+  const bits = useMemo(() => Array.from({ length: 9 }, (_, i) => ({
+    x: 8 + (i * 83) % 78,
+    dx: ((i * 37) % 60) - 30,
+    rot: ((i * 53) % 90) - 45,
+    e: BURST_EMOJI[i % BURST_EMOJI.length],
+    delay: (i % 4) * 40,
+  })), []);
+  return (
+    <div className="burst" aria-hidden="true">
+      {bits.map((b, i) => (
+        <span key={i} style={{ '--x': b.x + '%', '--dx': b.dx + 'px', '--rot': b.rot + 'deg', animationDelay: b.delay + 'ms' }}>{b.e}</span>
+      ))}
+    </div>
+  );
+}
+
 function FundingCard({ party, econ, amt, setAmt, onModel }) {
   const isIn = party.committedEth > 0;
   const floorUnits = Math.floor(party.floorShare * 1000);
   const dusty = party.yourWeight > 0 && floorUnits < 1;
   const [confirming, setConfirming] = useState(false);
-  const yolo = () => { party.commit(); setAmt(''); };
+  const [burst, setBurst] = useState(0);
+  const yolo = () => {
+    party.commit();
+    setAmt('');
+    if (!reducedMotion()) {
+      setBurst(b => b + 1);
+      setTimeout(() => setBurst(0), 1000);
+    }
+  };
   return (
     <div className="card">
       <h2>This party gets</h2>
@@ -185,7 +238,11 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
       <div className="join-row">
         <input inputMode="decimal" placeholder={isIn ? 'yolo more' : 'how much?'} value={amt}
           onChange={e => setAmt(e.target.value)} aria-label="Amount in ETH" />
-        <button className="btn" onClick={yolo} disabled={party.preview <= 0 || dusty}>Yolo</button>
+        <button className={`btn yolo${party.preview > 0 && !dusty ? ' armed' : ''}`} onClick={yolo} disabled={party.preview <= 0 || dusty}>
+          Yolo
+          {party.preview > 0 && !dusty && <><span className="sp s1" aria-hidden="true">✨</span><span className="sp s2" aria-hidden="true">✨</span></>}
+        </button>
+        {burst > 0 && <Burst key={burst} />}
       </div>
       {dusty
         ? <div className="note bad">Too small — a full party would squeeze you under the dust bar and refund you.</div>
@@ -264,6 +321,7 @@ function FailedCard({ party }) {
 }
 
 function Partiers({ party }) {
+  const flipRef = useFlip();
   const rows = CROWD.map(p => ({ ...p, weight: weightOf(p) }));
   if (party.yourWeight > 0) rows.push({ name: 'you', you: true, preview: party.committedEth === 0, weight: party.yourWeight });
   const total = rows.reduce((s, r) => s + r.weight, 0);
@@ -271,19 +329,23 @@ function Partiers({ party }) {
   const active = withShare.filter(r => r.share >= HOUSE.dustShare);
   const dust = withShare.filter(r => r.share < HOUSE.dustShare);
   const Row = ({ r, dim }) => (
-    <div className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you' : ''}`} title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}>
-      <span className="ava">{r.you ? '🫵' : '🥳'}</span>
+    <div
+      data-flip={r.name}
+      className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}`}
+      title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}
+    >
+      <span className="ava">{dim ? '😭' : r.you ? '🫵' : '🥳'}</span>
       <span className="who">{r.name}{r.you && <> <span className="badge you">{r.preview ? 'preview' : 'you'}</span></>}{r.launcher && <> <span className="badge">launcher</span></>}</span>
       <span className="pct">{dim ? '0%' : fmtPct(r.share)}</span>
     </div>
   );
   return (
-    <div className="card">
-      <h2>Fellow partiers</h2>
+    <div className="card" ref={flipRef}>
+      <h2>Party list</h2>
       {active.map(r => <Row key={r.name} r={r} />)}
       {dust.length > 0 && (
         <>
-          <div className="rule">refunded at close — under the dust bar</div>
+          <div className="rule" data-flip="__rule">refunded at close — under the dust bar</div>
           {dust.map(r => <Row key={r.name} r={r} dim />)}
         </>
       )}
@@ -324,7 +386,7 @@ function App() {
 
   return (
     <>
-      <div className="pc-title"><span className="grad">Party</span>Clanker</div>
+      <div className="pc-title"><span className="hue">Party</span>Clanker</div>
 
       {phase === 'closing' && (
         <div className="banner glow">
