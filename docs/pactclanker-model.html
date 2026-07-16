@@ -85,7 +85,7 @@ table.sched td:first-child{color:var(--ink-1);font-weight:600}
 </style>
 <div class="viz-root"><div class="wrap">
 <h1>PartyClanker — What a Backer Gets</h1>
-<div class="sub"><b>Your side of the launch.</b> The crowd pools ETH, all-or-nothing, and launches a vanilla Clanker coin — the pool funds the dev buy, a vault streams bonus coins, trading fees flow to the crowd's units forever, and nobody is paid. Your allocation is <b>time-weighted</b>: weight = ETH &times; time remaining when you commit. This models what <i>you</i> walk away with — units, coins, and when they arrive.</div>
+<div class="sub"><b>Your side of the launch.</b> The crowd pools ETH, all-or-nothing, and launches a vanilla Clanker coin — the pool funds the dev buy, a vault streams bonus coins, trading fees flow to the crowd's units forever, and nobody is paid. Your allocation is <b>time-weighted</b>: weight = ETH &times; time remaining when you commit. House rules are fixed for every party (PRD DD-3..6); only your commit, the crowd, and the party size vary.</div>
 <div class="layout">
 
 <div class="panel">
@@ -95,23 +95,22 @@ table.sched td:first-child{color:var(--ink-1);font-weight:600}
   <div class="derived" id="vTd"></div>
 
   <h2>The raise</h2>
-  <div class="ctl"><label>Window <b id="vW"></b></label><input type="range" id="w" min="1" max="14" step="1" value="4"></div>
-  <div class="ctl"><label>Max raise <b id="vX"></b></label><input type="range" id="max" min="0.5" max="50" step="0.5" value="5"></div>
+  <div class="ctl"><label>Max raise (party size) <b id="vX"></b></label><input type="range" id="max" min="0.5" max="20" step="0.5" value="5"></div>
+  <div class="derived">The one launcher choice. Everything below "house rules" derives from it.</div>
   <div class="ctl"><label>Everyone else pools <b id="vO"></b></label><input type="range" id="o" min="0" max="50" step="0.1" value="3"></div>
   <div class="ctl"><label>Crowd's average commit point <b id="vC"></b></label><input type="range" id="c" min="0" max="95" step="5" value="50"></div>
   <div class="derived">50% &asymp; deposits arriving evenly through the window. Earlier crowd = more weight competition for you.</div>
 
-  <h2>The coin</h2>
-  <div class="ctl"><label>List price at launch (mcap) <b id="vM"></b></label><input type="range" id="mc" min="1" max="100" step="1" value="10"></div>
-  <div class="derived">Clanker's preset is 10 ETH (~$30K). The pool's dev buy walks up from this price while filling.</div>
+  <h2>House rules (fixed)</h2>
+  <div class="derived" style="line-height:1.7">
+    List mcap: <b class="t-hr" id="hrMcap"></b> — always 2.5&times; the max raise (DD-6)<br>
+    Vault bonus: <b class="t-hr">1:1</b> per coin bought (DD-6)<br>
+    Streams: bought <b class="t-hr">7d</b>, bonus <b class="t-hr">90d</b><br>
+    Fees to units: <b class="t-hr">100%</b> of the creator side<br>
+    Window: <b class="t-hr">4 days</b> · dust bar: <b class="t-hr">0.1%</b>
+  </div>
 
-  <h2>The early-backer bonus</h2>
-  <div class="ctl"><label>Vault multiple <b id="vMu"></b></label><input type="range" id="mult" min="0" max="3" step="0.25" value="1"></div>
-  <div class="ctl"><label>Bought coins stream over <b id="vD1"></b></label><input type="range" id="d1" min="1" max="30" step="1" value="7"></div>
-  <div class="ctl"><label>Bonus coins stream over <b id="vD2"></b></label><input type="range" id="d2" min="7" max="180" step="1" value="30"></div>
-
-  <h2>Fees &amp; frame</h2>
-  <div class="ctl"><label>Units' cut of trading fees <b id="vU"></b></label><input type="range" id="u" min="0" max="100" step="5" value="100"></div>
+  <h2>Frame</h2>
   <div class="ctl"><label>Volume guess <b id="vVg"></b></label><input type="range" id="vg" min="0" max="100000" step="1000" value="10000"></div>
   <div class="ctl"><label>ETH price <b id="vEp"></b></label><input type="range" id="ep" min="1000" max="10000" step="100" value="4000"></div>
 </div>
@@ -164,10 +163,11 @@ const pct=v=>{const p=v*100;return (p<10&&p%1?p.toFixed(p<1?2:1):p.toFixed(0))+'
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 function model(){
-  const me=+$('me').value, tPct=+$('t').value/100, W=+$('w').value;
+  const me=+$('me').value, tPct=+$('t').value/100, W=4;
   const X=+$('max').value, cPct=+$('c').value/100;
-  const mc=+$('mc').value, mult=+$('mult').value, d1=+$('d1').value, d2=+$('d2').value;
-  const u=+$('u').value/100, vg=+$('vg').value, ep=+$('ep').value;
+  // House rules (PRD DD-3..6): mcap = 2.5x max raise, 1:1 vault, 7d/90d streams, 100% fee cut.
+  const mc=2.5*X, mult=1, d1=7, d2=90;
+  const u=1, vg=+$('vg').value, ep=+$('ep').value;
   let others=+$('o').value;
   // cap: total deposits cannot exceed the max raise
   const capped=me+others>X;
@@ -264,14 +264,10 @@ function render(){
   $('vMe').textContent=fmtEth(m.me)+' ('+fmt$(m.me*m.ep)+')';
   $('vT').textContent='day '+(m.tPct*m.W).toFixed(1)+' of '+m.W;
   $('vTd').textContent='Weight = ETH x time remaining. Committing at day '+(m.tPct*m.W).toFixed(1)+' keeps '+pct(1-m.tPct)+' of full weight.';
-  $('vW').textContent=m.W+' days';
   $('vX').textContent=fmtEth(m.X);
   $('vO').textContent=fmtEth(m.others)+(m.capped?' (capped)':'');
   $('vC').textContent=pct(+$('c').value/100)+' of window';
-  $('vM').textContent=m.mc+' ETH ('+fmt$(m.mc*m.ep)+')';
-  $('vMu').textContent=m.mult.toFixed(2)+'x';
-  $('vD1').textContent=m.d1+' days';$('vD2').textContent=m.d2+' days';
-  $('vU').textContent=pct(m.u);
+  $('hrMcap').textContent=m.mc.toFixed(1)+' ETH ('+fmt$(m.mc*m.ep)+')';
   $('vVg').textContent=fmt$(m.vg)+'/day';
   $('vEp').textContent=fmt$(m.ep);
   $('capD1').textContent=m.d1+' days';$('capD2').textContent=m.d2+' days';
@@ -296,11 +292,11 @@ function render(){
 
   const cks=[];
   cks.push(m.dust?check('bad','You’d be refunded (dust rule)','share rounds below 1 unit — the launch happens without you'):check('ok','You clear the dust bar',''+m.units+' units — '+pct(m.f)+' of every stream and every fee'));
-  if(!m.dust)cks.push(m.myEntry<=1?check('ok','Entry below list price','your blended cost is '+m.myEntry.toFixed(2)+'x list — the vault bonus more than covers the buy’s price impact for you'):m.myEntry<=1.3?check('warn','Entry '+m.myEntry.toFixed(2)+'x list','above list — commit earlier or raise the vault multiple'):check('bad','Entry '+m.myEntry.toFixed(2)+'x list','you’re overpaying vs list even with the bonus'));
+  if(!m.dust)cks.push(m.myEntry<=1?check('ok','Entry below list price','your blended cost is '+m.myEntry.toFixed(2)+'x list — the vault bonus more than covers the buy’s price impact for you'):m.myEntry<=1.3?check('warn','Entry '+m.myEntry.toFixed(2)+'x list','above list — commit earlier'):check('bad','Entry '+m.myEntry.toFixed(2)+'x list','you’re overpaying vs list even with the bonus'));
   cks.push(m.wAdv>=1?check('ok','Earlier than the crowd average','your ETH carries '+m.wAdv.toFixed(2)+'x the weight of a crowd-average ETH'):check('warn','Later than the crowd average','your ETH carries only '+m.wAdv.toFixed(2)+'x a crowd-average ETH — every day you wait costs weight'));
-  cks.push(m.prem<=1.5?check('ok','Pool buy fills at '+m.prem.toFixed(2)+'x list','well-sized raise for this list price'):m.prem<=2.5?check('warn','Pool buy fills at '+m.prem.toFixed(2)+'x list','the raise is big for this mcap — outside buyers start above '+m.endMult.toFixed(1)+'x list'):check('bad','Pool buy fills at '+m.prem.toFixed(2)+'x list','the pool mostly pays itself; raise the list price or cap the raise lower'));
+  cks.push(m.prem<=1.5?check('ok','Pool buy fills at '+m.prem.toFixed(2)+'x list','well-sized raise for this list price'):m.prem<=2.5?check('warn','Pool buy fills at '+m.prem.toFixed(2)+'x list','outside buyers start above '+m.endMult.toFixed(1)+'x list'):check('bad','Pool buy fills at '+m.prem.toFixed(2)+'x list','the pool mostly pays itself \u2014 should not happen inside the house rules'));
   cks.push((m.bought+m.v)/S<=0.5?check('ok','Crowd holds '+pct((m.bought+m.v)/S)+' of supply','real float left for the market'):(m.bought+m.v)/S<=0.7?check('warn','Crowd holds '+pct((m.bought+m.v)/S),'thin outside float'):check('bad','Crowd holds '+pct((m.bought+m.v)/S),'almost nothing left for anyone else'));
-  cks.push(m.d2>=3*m.d1?check('ok','Bonus streams '+(m.d2/m.d1).toFixed(1)+'x slower','lowest-cost-basis coins arrive slowest — anti-dump by schedule'):check('warn','Bonus streams only '+(m.d2/m.d1).toFixed(1)+'x slower','lengthen the bonus stream (target ≥3x)'));
+  cks.push(m.d2>=3*m.d1?check('ok','Bonus streams '+(m.d2/m.d1).toFixed(1)+'x slower','lowest-cost-basis coins arrive slowest — anti-dump by schedule'):check('warn','Bonus streams only '+(m.d2/m.d1).toFixed(1)+'x slower','house rules keep this fixed'));
   if(m.capped)cks.push(check('warn','Max raise reached','the pool is full at '+fmtEth(m.X)+' — capacity only reopens if someone withdraws'));
   if(m.clamped)cks.push(check('bad','Vault clamped','bought + bonus exceeded 90% of supply — lower the multiple or the raise'));
   $('checks').innerHTML=cks.join('');

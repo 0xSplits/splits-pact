@@ -177,6 +177,7 @@ function MathBox({ party, econ, onModel }) {
   return (
     <div className="mathbox">
       <div className="t">the math <button className="act" onClick={onModel}>full model →</button></div>
+      <span>Lists at <b>{HOUSE.mcap} ETH</b> mcap — house rule: always 2.5x the {HOUSE.max} ETH max, so a full party still enters under list.</span>
       <span>Enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a launch-day buyer's price.</span>
       <span>Party holds <b>{fmtPct(econ.partyShare)}</b> of supply; <b>{fmtPct(1 - econ.partyShare)}</b> stays in the market.</span>
       {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units).</span>}
