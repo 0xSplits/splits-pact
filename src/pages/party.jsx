@@ -1,28 +1,27 @@
 // PartyClanker playable mock — UX playground only, no chain, no API.
-// All five lifecycle states are switchable from the dev bar so the flow can
-// be felt end-to-end before any contract work. House rules follow the PRD:
-// fixed-multiple vault (DD-6), mcap = 2.5x max raise (DD-6), time-weighted
-// shares (DD-3), dust bar at 1 unit / 0.1% (DD-4), ETH-denominated (DD-5).
+// Throwaway rainbow-dark styling (deliberately NOT the PACT app design system).
+// House rules follow the PRD: fixed-multiple vault (DD-6), mcap = 2.5x max
+// raise (DD-6), time-weighted shares (DD-3), dust bar 0.1% (DD-4), ETH (DD-5).
+// Typing an amount previews everything live: the raise bar, your row in the
+// partier list, and anyone your yolo would bump under the dust bar.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './party.css';
-import { Button } from '../components/ui.jsx';
 
 const S = 1e9;
 const HOUSE = {
   ticker: '$PARTY',
   icon: '🎈',
-  min: 1,            // ETH
-  max: 10,           // ETH
-  mcap: 25,          // ETH — 2.5x max, per DD-6
-  mult: 1,           // vault: one bonus coin per coin bought, per DD-6
+  min: 1,
+  max: 10,
+  mcap: 25,          // 2.5x max, per DD-6
+  mult: 1,           // one bonus coin per coin bought, per DD-6
   windowDays: 4,
   boughtStreamDays: 7,
   bonusStreamDays: 90,
-  dustShare: 0.001,  // 1 unit of 1000
+  dustShare: 0.001,
 };
 
-// Everyone else in the party: pledge size + when in the window they joined.
 const CROWD = [
   { name: 'abram.eth', eth: 0.5, tFrac: 0.0, launcher: true },
   { name: 'gerry.eth', eth: 1.2, tFrac: 0.2 },
@@ -33,7 +32,8 @@ const CROWD = [
   { name: 'pip.eth', eth: 0.003, tFrac: 0.3 },
 ];
 
-const NOW_T = 0.4; // "now" sits at day 1.6 of the 4-day window in the mock
+const NOW_T = 0.4; // "now" = day 1.6 of the 4-day window
+const pageLoad = Date.now();
 
 const weightOf = p => p.eth * (1 - p.tFrac);
 const fmtEth = v => (v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(3)) + ' ETH';
@@ -43,8 +43,8 @@ const fmtPct = v => {
 };
 const fmtCoins = v => (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v.toFixed(0));
 
-// Dev buy against the launch curve with a fixed-multiple vault (DD-6).
-// Constant-product approximation — same math as docs/pactclanker-model.html.
+// Dev buy on the launch curve with a fixed-multiple vault (DD-6).
+// Constant-product approximation — same math as the modeler.
 function partyEcon(D) {
   const p0 = HOUSE.mcap / S;
   let v = 0, bought = 0;
@@ -57,175 +57,150 @@ function partyEcon(D) {
   const prem = 1 + D / y0;
   return {
     bought, vault: v,
-    partyShareOfSupply: (bought + v) / S,
-    prem,                                   // avg fill vs list
-    spot: prem * prem,                      // pool price right after launch
-    blended: prem / (1 + HOUSE.mult),       // party's cost per coin vs list
-    vsTge: 1 / ((1 + HOUSE.mult) * prem),   // party price / first outside buyer's price
+    partyShare: (bought + v) / S,
+    prem,
+    blended: prem / (1 + HOUSE.mult),
+    vsTge: 1 / ((1 + HOUSE.mult) * prem),
   };
 }
 
-function usePartyState(joined) {
-  // Your pledges: tranches of {eth, tFrac}. Joined mock = 1 ETH early on.
+// All weights, live: committed crowd + your committed pledges + your typed preview.
+function useParty(joined, previewEth) {
   const [pledges, setPledges] = useState([]);
   useEffect(() => { setPledges(joined ? [{ eth: 1, tFrac: 0.25 }] : []); }, [joined]);
 
-  const yourEth = pledges.reduce((s, p) => s + p.eth, 0);
-  const yourWeight = pledges.reduce((s, p) => s + weightOf(p), 0);
+  const committedEth = pledges.reduce((s, p) => s + p.eth, 0);
   const crowdEth = CROWD.reduce((s, p) => s + p.eth, 0);
+  const room = Math.max(0, HOUSE.max - crowdEth - committedEth);
+  const preview = Math.min(Math.max(0, previewEth || 0), room);
+
+  const yourWeight = pledges.reduce((s, p) => s + weightOf(p), 0) + preview * (1 - NOW_T);
   const crowdWeight = CROWD.reduce((s, p) => s + weightOf(p), 0);
-  const raised = crowdEth + yourEth;
   const totalWeight = crowdWeight + yourWeight;
+  const yourEth = committedEth + preview;
+  const raised = crowdEth + yourEth;
 
   const yourShare = totalWeight > 0 ? yourWeight / totalWeight : 0;
-  // Worst case: the rest of the max arrives this instant at full remaining weight.
   const capacityLeft = Math.max(0, HOUSE.max - raised);
+  // Floor: the rest of the max arrives this instant at full remaining weight.
   const floorShare = yourWeight > 0 ? yourWeight / (totalWeight + capacityLeft * (1 - NOW_T)) : 0;
 
-  return { pledges, setPledges, yourEth, yourWeight, yourShare, floorShare, raised, capacityLeft, totalWeight };
+  const commit = () => { if (preview > 0) setPledges(p => [...p, { eth: preview, tFrac: NOW_T }]); };
+  const yank = () => setPledges([]);
+
+  return { pledges, committedEth, preview, yourEth, yourWeight, yourShare, floorShare, raised, room, capacityLeft, totalWeight, commit, yank };
 }
 
 function Countdown({ phase }) {
   const [, tick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => tick(n => n + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  if (phase !== 'funding') return <span className="time">0h 00m 00s</span>;
-  // Freeze "now" at page load; the visible clock runs from there.
+  useEffect(() => { const id = setInterval(() => tick(n => n + 1), 1000); return () => clearInterval(id); }, []);
+  if (phase !== 'funding') {
+    const label = { closing: 'window over — goal met, waiting on launch', launched: 'launched — streams running, fees flowing', failed: 'goal missed — refunds open' }[phase];
+    return <div className="clock">{label}</div>;
+  }
   const remainMs = (1 - NOW_T) * HOUSE.windowDays * 86400e3 - (Date.now() - pageLoad);
   const s = Math.max(0, Math.floor(remainMs / 1000));
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-  return <span className="time">{d}d {String(h).padStart(2, '0')}h {String(m).padStart(2, '0')}m {String(s % 60).padStart(2, '0')}s</span>;
-}
-const pageLoad = Date.now();
-
-function PartyHeader({ phase, state }) {
-  const othersFrac = (state.raised - state.yourEth) / HOUSE.max;
-  const youFrac = state.yourEth / HOUSE.max;
-  const decayWeight = 1 - NOW_T;
   return (
-    <div className="pc-card">
-      <div className="pc-token">
-        <div className="pc-icon">{HOUSE.icon}</div>
+    <div className="clock">
+      <span className="time">{d}d {String(h).padStart(2, '0')}h {String(m).padStart(2, '0')}m {String(s % 60).padStart(2, '0')}s</span> left
+      <span className="decay"> · 1 ETH now = <b>{(1 - NOW_T).toFixed(2)}</b> weight</span>
+    </div>
+  );
+}
+
+function TokenCard({ phase, party }) {
+  const crowdFrac = (party.raised - party.yourEth) / HOUSE.max;
+  const youCommittedFrac = party.committedEth / HOUSE.max;
+  const youPreviewFrac = party.preview / HOUSE.max;
+  return (
+    <div className="card">
+      <div className="token">
+        <div className="icon">{HOUSE.icon}</div>
         <div>
-          <div className="pc-ticker">{HOUSE.ticker}</div>
-          <div className="t-muted text-sm">a vanilla Clanker coin, launched by this party — nobody is paid</div>
+          <div className="ticker">{HOUSE.ticker}</div>
+          <div className="sub">a vanilla Clanker coin — nobody is paid</div>
         </div>
       </div>
-      <div className="pc-bar">
-        <div className="fill" style={{ width: `calc(${Math.min(1, othersFrac) * 100}% - 2px)` }} />
-        {youFrac > 0 && <div className="you" title={`you: ${fmtEth(state.yourEth)}`} style={{ left: `calc(${othersFrac * 100}% + 2px)`, width: `${youFrac * 100}%` }} />}
-        <div className="min-tick" style={{ left: `${(HOUSE.min / HOUSE.max) * 100}%` }}><span>min {HOUSE.min} ETH</span></div>
+      <div className="bar">
+        <div className="fill" style={{ width: `calc(${Math.min(1, crowdFrac) * 100}% - 3px)` }} />
+        {youCommittedFrac > 0 && <div className="you" style={{ left: `${crowdFrac * 100}%`, width: `${youCommittedFrac * 100}%` }} />}
+        {youPreviewFrac > 0 && <div className="you preview" style={{ left: `${(crowdFrac + youCommittedFrac) * 100}%`, width: `${youPreviewFrac * 100}%` }} />}
+        <div className="min-tick" style={{ left: `${(HOUSE.min / HOUSE.max) * 100}%` }} title={`min ${HOUSE.min} ETH`} />
       </div>
-      <div className="pc-bar-caps">
-        <span><b className="t-ink">{fmtEth(state.raised)}</b> raised{state.yourEth > 0 ? <> — <span style={{ color: 'var(--marker)' }}>{fmtEth(state.yourEth)} you</span></> : null}</span>
+      <div className="bar-caps">
+        <span><b>{fmtEth(party.raised)}</b>{party.yourEth > 0 && <span className="you-amt"> · {fmtEth(party.yourEth)} you</span>}</span>
         <span>max {HOUSE.max} ETH</span>
       </div>
-      <div className="pc-clock">
-        <Countdown phase={phase} />
-        {phase === 'funding' && (
-          <span className="pc-decay">left in the window — 1 ETH yolo'd now carries <b>{decayWeight.toFixed(2)}</b> weight; the same ETH on day one carried <b>1.00</b></span>
-        )}
-        {phase === 'closing' && <span className="pc-decay">window over — goal met, waiting on launch</span>}
-        {phase === 'launched' && <span className="pc-decay">launched — streams running, fees flowing</span>}
-        {phase === 'failed' && <span className="pc-decay">window over — goal missed, refunds open</span>}
-      </div>
+      <Countdown phase={phase} />
     </div>
   );
 }
 
-function DealCard({ econ, raised }) {
+function Gets() {
   return (
-    <div className="pc-card">
-      <h2 className="mt-0 text-lg font-bold mb-3">This party gets</h2>
-      <ul className="pc-gets">
-        <li><span className="tick">✓</span><span>100% of the dev buy — the first fill, before any sniper</span></li>
-        <li><span className="tick">✓</span><span>A matching bonus coin for every coin the party buys <span className="why">(streams over {HOUSE.bonusStreamDays} days)</span></span></li>
-        <li><span className="tick">✓</span><span>100% of trading fees, forever</span></li>
-        <li><span className="tick">✓</span><span>100% refunded if the goal fails</span></li>
-      </ul>
-      <div className="pc-readouts" style={{ marginTop: 14 }}>
-        <span>At the current {fmtEth(raised)}, this party enters at <b>{econ.blended.toFixed(2)}x list</b> — every partier pays <b>{Math.round(econ.vsTge * 100)}%</b> of what the first outside buyer pays.</span>
-        <span>Party would hold <b>{fmtPct(econ.partyShareOfSupply)}</b> of supply ({fmtPct(econ.bought / S)} bought + {fmtPct(econ.vault / S)} bonus), leaving <b>{fmtPct(1 - econ.partyShareOfSupply)}</b> to the market.</span>
-      </div>
-    </div>
+    <ul className="gets">
+      <li><span className="tick">✓</span><span>100% of the dev buy</span></li>
+      <li><span className="tick">✓</span><span>Streaming matching bonus <span className="why">1:1, over {HOUSE.bonusStreamDays}d</span></span></li>
+      <li><span className="tick">✓</span><span>100% of trading fees, forever</span></li>
+      <li><span className="tick">✓</span><span>Full refund if the goal fails</span></li>
+    </ul>
   );
 }
 
-function JoinCard({ state, econ }) {
-  const [amt, setAmt] = useState('0.5');
-  const eth = Math.max(0, parseFloat(amt) || 0);
-  const capped = eth > state.capacityLeft;
-  const useEth = Math.min(eth, state.capacityLeft);
-  const w = useEth * (1 - NOW_T);
-  const share = (state.totalWeight + w) > 0 ? w / (state.totalWeight + w) : 0;
-  const floor = w > 0 ? w / (state.totalWeight + w + Math.max(0, state.capacityLeft - useEth) * (1 - NOW_T)) : 0;
-  const floorUnits = Math.floor(floor * 1000);
-  const dusty = useEth > 0 && floorUnits < 1;
-  const yolo = () => state.setPledges(p => [...p, { eth: useEth, tFrac: NOW_T }]);
+function MathBox({ party, econ, onModel }) {
+  const [open, setOpen] = useState(false);
+  if (!open) return <button className="reveal" onClick={() => setOpen(true)}>what does the math say? ▸</button>;
   return (
-    <div className="pc-card">
-      <h2 className="mt-0 text-lg font-bold mb-1">Join this party</h2>
-      <div className="pc-input-row">
-        <input inputMode="decimal" value={amt} onChange={e => setAmt(e.target.value)} aria-label="Amount in ETH" />
-        <span className="unit">ETH</span>
-        <Button onClick={yolo} disabled={useEth <= 0 || dusty}>Yolo</Button>
+    <>
+      <button className="reveal" onClick={() => setOpen(false)}>what does the math say? ▾</button>
+      <div className="mathbox">
+        <span>Party enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a launch-day buyer's price.</span>
+        <span>Party holds <b>{fmtPct(econ.partyShare)}</b> of supply; <b>{fmtPct(1 - econ.partyShare)}</b> stays in the market.</span>
+        {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units).</span>}
+        <button className="act" onClick={onModel}>open the full model →</button>
       </div>
-      <div className="pc-readouts">
-        {capped && <span className="warn">Only {fmtEth(state.capacityLeft)} of room left — that's what would go in.</span>}
-        <span><b>{fmtPct(share)}</b> of the party right now → at least <b>{fmtPct(floor)}</b> ({floorUnits} units) if the party fills.</span>
-        {dusty
-          ? <span className="bad">Too little to survive a full party — below the dust bar (0.1%), you'd be refunded at close. Yolo more.</span>
-          : useEth > 0 && <span>Ownership only drifts down as more join; the floor number is yours to keep.</span>}
-      </div>
-    </div>
+    </>
   );
 }
 
-function JoinedCard({ state, phase }) {
-  const [amt, setAmt] = useState('');
+function FundingCard({ party, econ, amt, setAmt, onModel }) {
+  const isIn = party.committedEth > 0;
+  const floorUnits = Math.floor(party.floorShare * 1000);
+  const dusty = party.yourWeight > 0 && floorUnits < 1;
   const [confirming, setConfirming] = useState(false);
-  const eth = Math.max(0, parseFloat(amt) || 0);
-  const useEth = Math.min(eth, state.capacityLeft);
-  const topUp = () => { if (useEth > 0) { state.setPledges(p => [...p, { eth: useEth, tFrac: NOW_T }]); setAmt(''); } };
-  const units = Math.floor(state.yourShare * 1000);
-  const dusty = units < 1;
+  const yolo = () => { party.commit(); setAmt(''); };
   return (
-    <div className="pc-card">
-      <h2 className="mt-0 text-lg font-bold mb-2">You're in</h2>
-      <div className="pc-hero">
-        <span className="big">{fmtPct(state.yourShare)}<span className="sub">of the party now</span></span>
-        <span className="pc-stat">{fmtPct(state.floorShare)}<span className="sub">floor if it fills ({Math.floor(state.floorShare * 1000)} units)</span></span>
-        <span className="pc-stat">{fmtEth(state.yourEth)}<span className="sub">pledged</span></span>
-      </div>
-      {dusty && <div className="pc-banner bad" style={{ marginTop: 10 }}>You've been diluted below the dust bar (0.1%) — at close you'd be refunded in full instead of joining the launch. Yolo more to rejoin the party.</div>}
-      {phase === 'funding' && (
-        <>
-          <div className="pc-input-row">
-            <input inputMode="decimal" placeholder="add more" value={amt} onChange={e => setAmt(e.target.value)} aria-label="Additional ETH" />
-            <span className="unit">ETH</span>
-            <Button variant="secondary" onClick={topUp} disabled={useEth <= 0}>Yolo more</Button>
-          </div>
-          <div className="pc-readouts">
-            <span>New ETH joins at today's weight ({(1 - NOW_T).toFixed(2)}) — your earlier pledge keeps the weight it earned.</span>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <Button variant="warning" onClick={() => setConfirming(true)}>Yank</Button>
-          </div>
-        </>
+    <div className="card">
+      <h2>This party gets</h2>
+      <Gets />
+      <div className="divider" />
+      {isIn && (
+        <div className="stat-row" style={{ marginBottom: 12 }}>
+          <span className="stat hero"><b>{fmtPct(party.yourShare)}</b><span>of the party{party.preview > 0 ? ' (previewing)' : ''}</span></span>
+          <span className="stat"><b>{fmtPct(party.floorShare)}</b><span>floor if it fills</span></span>
+          <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
+        </div>
       )}
+      <div className="join-row">
+        <input inputMode="decimal" placeholder={isIn ? 'yolo more' : 'how much?'} value={amt}
+          onChange={e => setAmt(e.target.value)} aria-label="Amount in ETH" />
+        <button className="btn" onClick={yolo} disabled={party.preview <= 0 || dusty}>Yolo</button>
+      </div>
+      {dusty
+        ? <div className="note bad">Too small — a full party would squeeze you under the dust bar and refund you.</div>
+        : party.preview > 0 && !isIn && <div className="note"><b>{fmtPct(party.yourShare)}</b> of the party → at least <b>{fmtPct(party.floorShare)}</b> if it fills. That floor is yours.</div>}
+      {party.preview > 0 && party.preview < (parseFloat(amt) || 0) && <div className="note">Only {fmtEth(party.room)} of room left.</div>}
+      {isIn && <div style={{ marginTop: 12 }}><button className="btn danger sm" onClick={() => setConfirming(true)}>Yank</button></div>}
+      <MathBox party={party} econ={econ} onModel={onModel} />
       {confirming && (
-        <div className="pc-modal-scrim" onClick={() => setConfirming(false)}>
-          <div className="pc-modal" onClick={e => e.stopPropagation()}>
-            <h3 className="mt-0 text-lg font-bold mb-2">Yank your {fmtEth(state.yourEth)}?</h3>
-            <p className="text-sm" style={{ color: 'var(--muted2)' }}>
-              You get every wei back right now — and your weight goes to zero. If you re-join later,
-              you start from scratch at that day's weight. Your spot frees up for someone else.
-            </p>
+        <div className="scrim" onClick={() => setConfirming(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Yank your {fmtEth(party.committedEth)}?</h3>
+            <p>Every wei comes back now — and your weight zeroes. Re-joining starts from scratch at that day's weight.</p>
             <div className="actions">
-              <Button variant="secondary" onClick={() => setConfirming(false)}>Stay in</Button>
-              <Button variant="warning" onClick={() => { state.setPledges([]); setConfirming(false); }}>Yank it all</Button>
+              <button className="btn ghost sm" onClick={() => setConfirming(false)}>Stay in</button>
+              <button className="btn danger sm" onClick={() => { party.yank(); setConfirming(false); }}>Yank it all</button>
             </div>
           </div>
         </div>
@@ -234,90 +209,81 @@ function JoinedCard({ state, phase }) {
   );
 }
 
-function LaunchedCard({ state }) {
+function LaunchedCard({ party }) {
   const [, tick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => tick(n => n + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const econ = partyEcon(state.raised);
-  const units = Math.floor(state.yourShare * 1000);
+  useEffect(() => { const id = setInterval(() => tick(n => n + 1), 1000); return () => clearInterval(id); }, []);
+  const econ = partyEcon(party.raised);
+  const units = Math.floor(party.yourShare * 1000);
   const f = units / 1000;
+  if (units < 1) {
+    return <div className="card"><h2>Not in this one</h2><p className="note">The launch happened without you. Next party's a fresh start.</p></div>;
+  }
   const yourBought = f * econ.bought, yourBonus = f * econ.vault;
-  // Launched 2.1 days ago in the mock; the live clock keeps it moving.
   const daysSince = 2.1 + (Date.now() - pageLoad) / 86400e3;
   const bFrac = Math.min(1, daysSince / HOUSE.boughtStreamDays);
   const vFrac = Math.min(1, daysSince / HOUSE.bonusStreamDays);
-  const feesTotal = 0.31; // ETH collected by the party so far (mock)
-  if (units < 1) {
-    return <div className="pc-card"><h2 className="mt-0 text-lg font-bold mb-2">Not in this one</h2><p className="text-sm" style={{ color: 'var(--muted2)' }}>You weren't in this party (or were refunded at close under the dust bar). The launch happened without you — the next party is a fresh start.</p></div>;
-  }
+  const feesTotal = 0.31; // mock: ETH of fees the party has earned so far
   return (
-    <div className="pc-card">
-      <h2 className="mt-0 text-lg font-bold mb-2">Your side of the launch</h2>
-      <div className="pc-hero">
-        <span className="big">{fmtCoins((yourBought * bFrac + yourBonus * vFrac))}<span className="sub">coins claimable now</span></span>
-        <span className="pc-stat">{units} / 1000<span className="sub">your units</span></span>
-        <span className="pc-stat">{fmtEth(f * feesTotal)}<span className="sub">your fees so far</span></span>
+    <div className="card">
+      <h2>Your side of the launch</h2>
+      <div className="stat-row">
+        <span className="stat hero"><b>{fmtCoins(yourBought * bFrac + yourBonus * vFrac)}</b><span>coins claimable</span></span>
+        <span className="stat"><b>{units}<span style={{ color: 'var(--dimmer)', fontSize: 16 }}> /1000</span></b><span>units</span></span>
+        <span className="stat"><b>{fmtEth(f * feesTotal)}</b><span>fees so far</span></span>
       </div>
-      <div className="pc-stream">
-        <div className="lane">
-          <div className="lane-top"><span>Coins your ETH bought — {HOUSE.boughtStreamDays}-day stream</span><b>{fmtCoins(yourBought * bFrac)} / {fmtCoins(yourBought)}</b></div>
-          <div className="track"><div className="done bought" style={{ width: `${bFrac * 100}%` }} /></div>
-        </div>
-        <div className="lane">
-          <div className="lane-top"><span>Bonus coins — {HOUSE.bonusStreamDays}-day stream</span><b>{fmtCoins(yourBonus * vFrac)} / {fmtCoins(yourBonus)}</b></div>
-          <div className="track"><div className="done bonus" style={{ width: `${vFrac * 100}%` }} /></div>
-        </div>
+      <div className="lane">
+        <div className="lane-top"><span>Bought — {HOUSE.boughtStreamDays}d stream</span><b>{fmtCoins(yourBought * bFrac)} / {fmtCoins(yourBought)}</b></div>
+        <div className="track"><div className="done bought" style={{ width: `${bFrac * 100}%` }} /></div>
       </div>
-      <div className="pc-input-row" style={{ marginTop: 4 }}>
-        <Button>Claim coins</Button>
-        <Button variant="secondary">Claim fees</Button>
+      <div className="lane">
+        <div className="lane-top"><span>Bonus — {HOUSE.bonusStreamDays}d stream</span><b>{fmtCoins(yourBonus * vFrac)} / {fmtCoins(yourBonus)}</b></div>
+        <div className="track"><div className="done bonus" style={{ width: `${vFrac * 100}%` }} /></div>
       </div>
-      <div className="pc-readouts">
-        <span>Fees never stop — your {units} units earn {fmtPct(f)} of every trade's fee, forever.</span>
+      <div className="join-row" style={{ marginTop: 6 }}>
+        <button className="btn">Claim coins</button>
+        <button className="btn ghost">Claim fees</button>
       </div>
+      <div className="note">Your {units} units earn {fmtPct(f)} of every trade's fee, forever.</div>
     </div>
   );
 }
 
-function FailedCard({ state }) {
-  if (state.yourEth <= 0) {
-    return <div className="pc-card"><h2 className="mt-0 text-lg font-bold mb-2">Party's over</h2><p className="text-sm" style={{ color: 'var(--muted2)' }}>The goal wasn't met — everyone who joined gets every wei back. You weren't in this one.</p></div>;
+function FailedCard({ party }) {
+  if (party.committedEth <= 0) {
+    return <div className="card"><h2>Party's over</h2><p className="note">Goal missed — everyone gets every wei back. You weren't in this one.</p></div>;
   }
   return (
-    <div className="pc-card">
-      <h2 className="mt-0 text-lg font-bold mb-2">Goal missed — full refund</h2>
-      <div className="pc-hero">
-        <span className="big">{fmtEth(state.yourEth)}<span className="sub">yours to take back</span></span>
+    <div className="card">
+      <h2>Goal missed — full refund</h2>
+      <div className="stat-row">
+        <span className="stat hero"><b>{fmtEth(party.committedEth)}</b><span>yours to take back</span></span>
       </div>
-      <p className="text-sm" style={{ color: 'var(--muted2)' }}>All-or-nothing means all or nothing: no launch, no coins, no haircut. Claim your refund below.</p>
-      <Button>Refund me</Button>
+      <button className="btn" style={{ marginTop: 12 }}>Refund me</button>
     </div>
   );
 }
 
-function Partiers({ state }) {
+function Partiers({ party }) {
   const rows = CROWD.map(p => ({ ...p, weight: weightOf(p) }));
-  if (state.yourWeight > 0) rows.push({ name: 'you', you: true, eth: state.yourEth, weight: state.yourWeight });
+  if (party.yourWeight > 0) rows.push({ name: 'you', you: true, preview: party.committedEth === 0, weight: party.yourWeight });
   const total = rows.reduce((s, r) => s + r.weight, 0);
   const withShare = rows.map(r => ({ ...r, share: total > 0 ? r.weight / total : 0 })).sort((a, b) => b.share - a.share);
   const active = withShare.filter(r => r.share >= HOUSE.dustShare);
   const dust = withShare.filter(r => r.share < HOUSE.dustShare);
   const Row = ({ r, dim }) => (
-    <div className={`pc-partier${dim ? ' dim' : ''}`} title={dim ? 'Below the dust bar — refunded in full at close. Yolo more to rejoin the party.' : undefined}>
+    <div className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you' : ''}`} title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}>
       <span className="ava">{r.you ? '🫵' : '🥳'}</span>
-      <span className="who">{r.name}{r.you && <> <span className="pc-badge you">you</span></>}{r.launcher && <> <span className="pc-badge">launcher</span></>}</span>
+      <span className="who">{r.name}{r.you && <> <span className="badge you">{r.preview ? 'preview' : 'you'}</span></>}{r.launcher && <> <span className="badge">launcher</span></>}</span>
       <span className="pct">{dim ? '0%' : fmtPct(r.share)}</span>
     </div>
   );
   return (
-    <div className="pc-card">
-      <h2 className="mt-0 text-lg font-bold mb-2">Fellow partiers</h2>
+    <div className="card">
+      <h2>Fellow partiers</h2>
       {active.map(r => <Row key={r.name} r={r} />)}
       {dust.length > 0 && (
         <>
-          <div className="pc-refunded-rule">refunded at close — below the dust bar</div>
+          <div className="rule">refunded at close — under the dust bar</div>
           {dust.map(r => <Row key={r.name} r={r} dim />)}
         </>
       )}
@@ -325,64 +291,80 @@ function Partiers({ state }) {
   );
 }
 
+function ModelModal({ onClose }) {
+  return (
+    <div className="scrim" onClick={onClose}>
+      <div className="modal wide" onClick={e => e.stopPropagation()}>
+        <div className="bar-top"><button className="btn ghost sm" onClick={onClose}>close</button></div>
+        <iframe src="/pactclanker-model.html" title="Launch modeler" />
+      </div>
+    </div>
+  );
+}
+
 const PHASES = [
-  ['funding', 'Funding'],
-  ['closing', 'Goal met, window over'],
-  ['launched', 'Launched'],
-  ['failed', 'Failed'],
+  ['funding', 'funding'],
+  ['closing', 'goal met'],
+  ['launched', 'launched'],
+  ['failed', 'failed'],
 ];
 
 function App() {
-  // Deep-linkable mock state: /party?state=launched&you=joined
+  // Deep-linkable mock state: /party?state=launched&you=joined&yolo=0.5
   const params = new URLSearchParams(location.search);
   const initialPhase = PHASES.some(([k]) => k === params.get('state')) ? params.get('state') : 'funding';
   const [phase, setPhase] = useState(initialPhase);
   const [joined, setJoined] = useState(params.get('you') === 'joined');
-  const state = usePartyState(joined);
-  const econ = useMemo(() => partyEcon(state.raised), [state.raised]);
-  const isIn = state.yourEth > 0;
+  const [amt, setAmt] = useState(params.get('yolo') || '');
+  const [modeling, setModeling] = useState(false);
+
+  const typing = phase === 'funding' ? Math.max(0, parseFloat(amt) || 0) : 0;
+  const party = useParty(joined, typing);
+  const econ = useMemo(() => partyEcon(party.raised), [party.raised]);
 
   return (
-    <div>
-      <div className="pc-devbar">
-        <span className="label">mock state:</span>
-        {PHASES.map(([k, label]) => (
-          <button key={k} className={`pc-pill${phase === k ? ' on' : ''}`} onClick={() => setPhase(k)}>{label}</button>
-        ))}
-        <span className="label" style={{ marginLeft: 10 }}>you:</span>
-        <button className={`pc-pill${!joined ? ' on' : ''}`} onClick={() => setJoined(false)}>fresh</button>
-        <button className={`pc-pill${joined ? ' on' : ''}`} onClick={() => setJoined(true)}>joined 1 ETH on day 1</button>
-      </div>
+    <>
+      <div className="pc-title"><span className="grad">Party</span>Clanker</div>
 
       {phase === 'closing' && (
-        <div className="pc-banner ok">
-          <b>Goal met.</b> The window is over — anyone can pull the trigger. One transaction launches the coin,
-          fills the party's dev buy, arms both streams, and points every trading fee at the party.
-          <div style={{ marginTop: 8 }}><Button>Launch the party 🎉</Button></div>
+        <div className="banner glow">
+          <b>Goal met, window over.</b> Anyone can pull the trigger — one transaction launches everything.
+          <div style={{ marginTop: 10 }}><button className="btn">Launch the party 🎉</button></div>
         </div>
       )}
 
-      <div className="pc-col">
-        <PartyHeader phase={phase} state={state} />
-        <div className="pc-grid">
-          <div className="pc-col">
-            {(phase === 'funding' || phase === 'closing') && <DealCard econ={econ} raised={state.raised} />}
-            {phase === 'funding' && (isIn ? <JoinedCard state={state} phase={phase} /> : <JoinCard state={state} econ={econ} />)}
-            {phase === 'closing' && isIn && <JoinedCard state={state} phase={phase} />}
-            {phase === 'launched' && <LaunchedCard state={state} />}
-            {phase === 'failed' && <FailedCard state={state} />}
-          </div>
-          <Partiers state={state} />
+      <div className="pc-grid">
+        <div className="pc-col left">
+          {(phase === 'funding' || phase === 'closing') && <FundingCard party={party} econ={econ} amt={amt} setAmt={setAmt} onModel={() => setModeling(true)} />}
+          {phase === 'launched' && <LaunchedCard party={party} />}
+          {phase === 'failed' && <FailedCard party={party} />}
+        </div>
+        <div className="pc-col right">
+          <TokenCard phase={phase} party={party} />
+          <Partiers party={party} />
         </div>
       </div>
 
-      <div className="pc-foot">
-        The launcher of record is a smart contract that provably can't keep anything — no founder cash, no team
-        coins, no knobs. House rules are the same for every party; only the coin differs.
-        {' '}<a href="/pactclanker-model.html" target="_blank" rel="noreferrer">Model this launch out</a> ·
-        mock data only — numbers use the PRD's curve approximation.
+      <div className="foot">
+        The launcher of record is a contract that provably can't keep anything. Same house rules, every party — only the coin differs.
+        {' '}<button className="act" onClick={() => setModeling(true)}>model this launch →</button>
       </div>
-    </div>
+
+      {modeling && <ModelModal onClose={() => setModeling(false)} />}
+
+      <div className="devcard">
+        <div className="t">mock state</div>
+        <div className="pills">
+          {PHASES.map(([k, label]) => (
+            <button key={k} className={`pill${phase === k ? ' on' : ''}`} onClick={() => setPhase(k)}>{label}</button>
+          ))}
+        </div>
+        <div className="sect pills">
+          <button className={`pill${!joined ? ' on' : ''}`} onClick={() => setJoined(false)}>fresh</button>
+          <button className={`pill${joined ? ' on' : ''}`} onClick={() => setJoined(true)}>joined day 1</button>
+        </div>
+      </div>
+    </>
   );
 }
 
