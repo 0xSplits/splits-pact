@@ -364,6 +364,24 @@ function FailedCard({ party }) {
   );
 }
 
+// Hoisted to module scope on purpose: defining Row inside Partiers gave it a new
+// function identity on every render, so React tore down and rebuilt every row's
+// DOM on each ambient-drift tick (~12.5x/sec) — replaying the .enter pop-in and
+// .just-bumped flash continuously. A stable identity lets React preserve rows
+// across re-renders, so pop-in fires once on real entry and FLIP handles reorders.
+const Row = ({ r, dim, rank, bumped }) => (
+  <div
+    data-flip={r.name}
+    data-rank={rank}
+    className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}${dim && bumped ? ' just-bumped' : ''}`}
+    title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}
+  >
+    <span className="ava">{dim ? '😭' : r.you ? '🫵' : '🥳'}</span>
+    <span className="who">{r.name}{r.you && <> <span className="badge you">{r.preview ? 'preview' : 'you'}</span></>}{r.launcher && <> <span className="badge">launcher</span></>}</span>
+    <span className="pct">{dim ? '0%' : fmtPct(r.proj)}</span>
+  </div>
+);
+
 function Partiers({ party }) {
   const flipRef = useFlip();
   // Rows sort AND display by the at-close projected share for everyone (you
@@ -389,18 +407,6 @@ function Partiers({ party }) {
     withShare.forEach(r => prevSection.current.set(r.name, r.proj >= HOUSE.dustShare ? 'active' : 'dust'));
   });
   const justBumped = r => Date.now() - (bumpedAt.current.get(r.name) || 0) < 800;
-  const Row = ({ r, dim, rank }) => (
-    <div
-      data-flip={r.name}
-      data-rank={rank}
-      className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}${dim && justBumped(r) ? ' just-bumped' : ''}`}
-      title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}
-    >
-      <span className="ava">{dim ? '😭' : r.you ? '🫵' : '🥳'}</span>
-      <span className="who">{r.name}{r.you && <> <span className="badge you">{r.preview ? 'preview' : 'you'}</span></>}{r.launcher && <> <span className="badge">launcher</span></>}</span>
-      <span className="pct">{dim ? '0%' : fmtPct(r.proj)}</span>
-    </div>
-  );
   return (
     <div className="card" ref={flipRef}>
       <h2>Party list</h2>
@@ -408,7 +414,7 @@ function Partiers({ party }) {
       {dust.length > 0 && (
         <>
           <div className="rule" data-flip="__rule" data-rank={active.length}>refunded at close — under the dust bar</div>
-          {dust.map((r, i) => <Row key={r.name} r={r} dim rank={active.length + 1 + i} />)}
+          {dust.map((r, i) => <Row key={r.name} r={r} dim rank={active.length + 1 + i} bumped={justBumped(r)} />)}
         </>
       )}
     </div>
