@@ -6,7 +6,7 @@ until marked decided. Two models are on the table:
 - **Model A** (below): stripped-down PACT — same primitive (sell Liquid Split
   units for USDC on a curve, proceeds to founder), fewer moving parts.
 - **Model B rev 2** ("Crowd-launched vanilla Clanker", working name
-  **PartyClanker**): the direction currently favored — a crowd pools USDC
+  **PartyClanker**): the direction currently favored — a crowd pools ETH
   all-or-nothing and launches a completely standard Clanker coin; nobody is
   paid; the crowd's return is the pre-bought coins, a vault bonus, and the
   perpetual trading-fee stream, all pro-rata to Liquid Split units.
@@ -92,8 +92,8 @@ LP-pairing settlement is superseded by the **vanilla Clanker launch path**;
 rev 2 also settles the founder question harder than rev 1 did.
 
 The pivot: **nobody is paid, ever.** The raise is not a sale of anything —
-it is a crowd pooling USDC, all-or-nothing, to launch a completely standard
-Clanker coin as a single fair actor. The creator receives no USDC, no
+it is a crowd pooling ETH, all-or-nothing, to launch a completely standard
+Clanker coin as a single fair actor. The creator receives no money, no
 special units, no vault of their own, no fee carve-out. They contribute like
 everyone else — in many launches the "creator" is just the group member who
 clicked the button. Their only edge is the time-weighting's natural
@@ -104,19 +104,26 @@ The crowd's return is threefold, all pro-rata to Liquid Split units: the
 pre-bought coin position (streamed), the vault bonus (streamed slower), and
 a cut of every trading fee (perpetual).
 
+**Live modeler:** [pactclanker-model.html](pactclanker-model.html) — a
+backer-POV calculator over the knobs below (your commit size and timing,
+window, max raise, crowd, starting mcap, vault multiple, stream lengths,
+fee cut). It computes your units (with the DD-4 dust rule live), your % of
+supply, entry price vs list and vs a TGE buyer, the claim schedule over
+time, and fee payback. Open it locally in a browser; everything is
+client-side.
+
 ### Mechanism sketch
 
 ```text
 1. announce()   creator/agent creates a LaunchPool: token params, window,
                 min raise, MAX raise, vault multiple + stream lengths
-2. deposit()    backers deposit USDC during the window; weight accrues
-                per second: accumulator += amount x elapsed_seconds.
+2. deposit()    backers deposit ETH during the window (DD-5); weight
+                accrues per second: accumulator += amount x elapsed_seconds.
                 withdraw() wipes accrued weight pro-rata (DD-1).
                 deposits past the max raise revert (DD-4)
 3. finalize()   at close, if min met, one settlement transaction:
                   ├─ dust pass: refund any depositor whose weight share
                   │    rounds below 1 unit (DD-4); recompute shares
-                  ├─ swap pooled USDC → ETH (DD-5)
                   ├─ call Clanker factory, vanilla v4 config:
                   │    ├─ DevBuy extension funded with the pool — the
                   │    │    atomic first swap, inside the deploy tx,
@@ -285,26 +292,28 @@ launching on the gross number would launch a raise that "failed."
 Open params: the cap size per template, the floor formula, and whether the
 dust threshold is exactly 1 unit or slightly above.
 
-#### DD-5: Raise currency — DECIDED: raise in USDC, pool pairs WETH
+#### DD-5: Raise currency — REVISED: raise in ETH, pool pairs WETH
 
-Verified against Clanker docs: the factory has allowed arbitrary quote
-tokens permissionlessly since v0.3.1, so a USDC-paired pool is *possible* —
-but USDC is not on the supported quote-token list (WETH, cbBTC, DEGEN,
-CLANKER, ANON, HIGHER, A0x, NATIVE), so it's off the indexed/frontend path
-and violates the "indistinguishable from any other Clanker launch"
-principle. Decisive detail: the DevBuy extension is ETH-denominated
-(`ClankerUniv4EthDevBuy`) — even a USDC-paired pool needs the dev buy to
-start from ETH (non-WETH pairs require an extra WETH↔paired PoolKey). A
-settlement swap is unavoidable, so the two knobs separate cleanly:
+Facts verified against Clanker docs: arbitrary quote tokens are
+permissionless since v0.3.1, but USDC is not on the supported quote-token
+list (WETH, cbBTC, DEGEN, CLANKER, ANON, HIGHER, A0x, NATIVE) — a USDC pool
+is off the indexed/frontend path and violates the "indistinguishable from
+any other Clanker launch" principle. And the DevBuy extension is
+ETH-denominated (`ClankerUniv4EthDevBuy`): the dev buy starts from ETH no
+matter what the pool pairs against.
 
-- **Raise in USDC**: PACT UX as-is, and every DD-4 sizing rule (min, max,
-  dust) stays dollar-denominated and stable for the whole window.
-- **Pool pairs WETH**: fully vanilla, standard presets (~$30K / 10 ETH
-  starting mcap).
-- **One USDC→ETH swap inside finalize**, slippage bounded by the max raise.
+Rev 2 initially chose a USDC raise with a USDC→ETH swap inside finalize.
+Revised to **raise in ETH** on a second look: the swap would be the only
+non-Clanker moving part in the settlement transaction — the riskiest tx in
+the system — and deleting it buys real simplicity (no router dependency, no
+minOut/slippage handling, no sandwich surface at close). USDC deposits never
+touch the dev-buy path anyway, so ETH-in/ETH-through is the straightest
+line.
 
-ETH-only raising would delete the swap but makes every sizing rule float
-with ETH price for the whole window — worse trade.
+Cost accepted: DD-4's sizing rules (min, max, dust) are ETH-denominated and
+float against the dollar during the window. Mitigations: windows are short
+(days), and the UI shows live USD equivalents next to every ETH figure so
+backers still size in dollars mentally.
 
 ### Complexity budget
 
@@ -318,8 +327,8 @@ a nice-to-have. Ranked by risk:
    operation, no loops, ~50–100 lines. Wipe-on-withdraw adds one line
    (`accrued -= accrued * amount / balance`).
 2. **The settlement transaction is the risky part.** One transaction
-   spanning: a USDC→ETH swap, the Clanker factory (vanilla deploy + DevBuy
-   + Vault + reward config), Splits Vesting (stream arming), and the Liquid
+   spanning: the Clanker factory (vanilla deploy + DevBuy + Vault + reward
+   config), Splits Vesting (stream arming), and the Liquid
    Split factory (mint with full allocation arrays). Every Clanker-side
    piece is a stock, allowlisted, audited v4 component used thousands of
    times — the new surface is only the adapter that sequences them.
@@ -336,7 +345,7 @@ the min is one bool), a custom Clanker extension or LP routing (rev 1's
 LP-pairing idea required allowlisting and a nonstandard pool — dropped),
 and any governance/futarchy machinery.
 
-### Where the USDC goes
+### Where the pooled ETH goes
 
 All of it funds the **dev buy** — Clanker's DevBuy extension, the atomic
 first swap executed inside the deploy transaction. The crowd is,
@@ -373,7 +382,7 @@ gets its own table, since the fork is structural, not a trim.
 ### What "done" looks like (from the v0 build prompt)
 
 One real group (50+ people, each in their own wallet), one vanilla Clanker
-coin on Base mainnet, launched through the full path: USDC in → units →
+coin on Base mainnet, launched through the full path: ETH in → units →
 all-or-nothing close → one settlement tx → coin streaming over ~7 days →
 fees claimable forever — **and the refund path exercised at least once (a
 deliberately failed test raise) with real money, documented publicly.** The
