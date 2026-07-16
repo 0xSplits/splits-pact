@@ -204,6 +204,7 @@ function MathBox({ party, econ, onModel }) {
       <span>Enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a launch-day buyer's price.</span>
       <span>Party holds <b>{fmtPct(econ.partyShare)}</b> of supply; <b>{fmtPct(1 - econ.partyShare)}</b> stays in the market.</span>
       {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units) — this only ever goes up while you're in.</span>}
+      {party.yourLive > 0 && <span>Live weight: <b>{fmtPct(party.yourLiveShare)}</b> (converges to at-close).</span>}
     </div>
   );
 }
@@ -228,10 +229,11 @@ function Burst() {
 
 function FundingCard({ party, econ, amt, setAmt, onModel }) {
   const isIn = party.committedEth > 0;
-  // Live hero at full precision: integer+2dp at hero size, the spinning decimal
-  // tail smaller and dimmer so the ambient drift is visible without overflowing.
-  const liveP = (party.yourLiveShare * 100).toFixed(10);
-  const liveCut = liveP.indexOf('.') + 3;
+  // Floor hero at full precision: integer+2dp at hero size, the ticking decimal
+  // tail smaller and dimmer. Unlike live weight, the floor only ratchets UP as
+  // the ambient drift decays unfilled capacity's weight.
+  const floorP = (party.floorShare * 100).toFixed(10);
+  const floorCut = floorP.indexOf('.') + 3;
   const floorUnits = Math.floor(party.floorShare * 1000);
   const dusty = party.yourWeight > 0 && floorUnits < 1;
   const [confirming, setConfirming] = useState(false);
@@ -251,8 +253,8 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
       <div className="divider" />
       {isIn && (
         <div className="stat-row" style={{ marginBottom: 12 }}>
-          <span className="stat hero"><b>{liveP.slice(0, liveCut)}<small className="live-tail">{liveP.slice(liveCut)}%</small></b><span>of the party — live weight</span><span>{fmtPct(party.yourShare)} at close{party.preview > 0 ? ' (previewing)' : ''}</span></span>
-          <span className="stat"><b>{fmtPct(party.floorShare)}</b><span>floor if it fills — only goes up</span></span>
+          <span className="stat hero"><b>{floorP.slice(0, floorCut)}<small className="hero-tail">{floorP.slice(floorCut)}%</small></b><span>guaranteed at least — only goes up</span></span>
+          <span className="stat"><b>{fmtPct(party.yourShare)}</b><span>at close{party.preview > 0 ? ' (previewing)' : ''}</span></span>
           <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
         </div>
       )}
