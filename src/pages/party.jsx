@@ -156,9 +156,13 @@ function Clock({ phase, nowT }) {
 }
 
 function TokenCard({ phase, party, nowT }) {
-  const crowdFrac = (party.raised - party.yourEth) / HOUSE.max;
-  const youCommittedFrac = party.committedEth / HOUSE.max;
-  const youPreviewFrac = party.preview / HOUSE.max;
+  // Two-stage denominator: below the goal the whole bar spans the minimum (so an
+  // on-track party reads full, not underfunded); once met it rescales to the max.
+  const goalMet = party.raised >= HOUSE.min;
+  const denom = goalMet ? HOUSE.max : HOUSE.min;
+  const crowdFrac = Math.min(1, (party.raised - party.yourEth) / denom);
+  const youCommittedFrac = Math.min(1, party.committedEth / denom);
+  const youPreviewFrac = Math.min(1, party.preview / denom);
   return (
     <div className="card">
       <div className="token">
@@ -169,14 +173,14 @@ function TokenCard({ phase, party, nowT }) {
         </div>
       </div>
       <div className="bar">
-        <div className="fill" style={{ width: `calc(${Math.min(1, crowdFrac) * 100}% - 3px)` }} />
+        <div className="fill" style={{ width: `calc(${crowdFrac * 100}% - 3px)` }} />
         {youCommittedFrac > 0 && <div className="you" style={{ left: `${crowdFrac * 100}%`, width: `${youCommittedFrac * 100}%` }} />}
-        {youPreviewFrac > 0 && <div className="you preview" style={{ left: `${(crowdFrac + youCommittedFrac) * 100}%`, width: `${youPreviewFrac * 100}%` }} />}
-        <div className="min-tick" style={{ left: `${(HOUSE.min / HOUSE.max) * 100}%` }} title={`min ${HOUSE.min} ETH`} />
+        {youPreviewFrac > 0 && <div className="you preview" style={{ left: `${Math.min(1, crowdFrac + youCommittedFrac) * 100}%`, width: `${youPreviewFrac * 100}%` }} />}
+        {goalMet && <div className="min-tick met" style={{ left: `${(HOUSE.min / HOUSE.max) * 100}%` }} title={`min ${HOUSE.min} ETH`} />}
       </div>
       <div className="bar-caps">
         <span><b>{fmtEth(party.raised)}</b>{party.yourEth > 0 && <span className="you-amt"> · {fmtEth(party.yourEth)} you</span>}</span>
-        <span>max {HOUSE.max} ETH</span>
+        <span>{goalMet ? `max ${HOUSE.max} ETH` : `goal ${HOUSE.min} ETH`}</span>
       </div>
       <Clock phase={phase} nowT={nowT} />
     </div>
