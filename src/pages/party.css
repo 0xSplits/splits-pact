@@ -68,7 +68,7 @@ body {
 }
 .bar .fill { left: 3px; background: var(--green); }
 .bar .you { background: var(--blue); box-shadow: 0 0 10px rgba(74, 168, 255, 0.55); }
-.bar .you.preview { background: var(--blue); opacity: 0.5; box-shadow: none; border: 2px dotted #bfdfff; }
+.bar .you.preview { background: rgba(74, 168, 255, 0.45); box-shadow: none; border: 2px dotted var(--blue); }
 .bar .min-tick { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: 2px dotted var(--dimmer); }
 .bar-caps { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
 .bar-caps b { color: var(--ink); }
@@ -79,10 +79,7 @@ body {
 .clock .decay b { color: var(--ink); }
 
 /* ---- deal + join (left column) ---- */
-.gets { list-style: none; display: grid; gap: 7px; margin-bottom: 4px; }
-.gets li { display: flex; gap: 9px; align-items: baseline; font-weight: 700; }
-.gets .tick { flex: none; font-weight: 900; color: var(--green); }
-.gets .why { color: var(--dim); font-weight: 400; font-size: 13px; }
+.gets { color: var(--dim); font-size: 13.5px; line-height: 1.6; margin-bottom: 4px; }
 
 .divider { border-top: 1px solid var(--edge); margin: 16px 0; }
 
@@ -112,15 +109,14 @@ body {
 .btn.yolo { position: relative; background: none; border: 2px solid #fff; color: #fff; }
 .btn.yolo:hover { background: rgba(255, 255, 255, 0.08); }
 .btn.yolo.armed {
-  border: 2px solid transparent; color: #0d0d13;
+  border: 3px solid transparent; color: #0d0d13;
   background:
     linear-gradient(#fff, #fff) padding-box,
-    linear-gradient(90deg, #ff5e5e, #ffb74a, #ffe14a, #4ade80, #4aa8ff, #a78bfa) border-box;
+    linear-gradient(90deg, #ff3b3b, #ff9d1c, #ffd60a, #22d466, #2a8fff, #9b5cff) border-box;
   box-shadow:
-    0 0 12px rgba(255, 94, 94, 0.30),
-    0 0 22px rgba(74, 168, 255, 0.28),
-    0 0 32px rgba(74, 222, 128, 0.22);
-  animation: armed-pulse 1.5s ease-in-out infinite;
+    0 0 14px rgba(255, 59, 59, 0.45),
+    0 0 26px rgba(42, 143, 255, 0.42),
+    0 0 40px rgba(34, 212, 102, 0.35);
 }
 .btn.yolo.armed:hover { background:
     linear-gradient(#fff, #fff) padding-box,
@@ -128,10 +124,6 @@ body {
 .btn.yolo .sp { position: absolute; font-size: 13px; pointer-events: none; }
 .btn.yolo .sp.s1 { top: -9px; left: -7px; animation: twinkle 1.2s ease-in-out infinite; }
 .btn.yolo .sp.s2 { bottom: -9px; right: -7px; animation: twinkle 1.2s ease-in-out 0.6s infinite; }
-@keyframes armed-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
-}
 @keyframes twinkle {
   0%, 100% { transform: scale(0.6) rotate(-12deg); opacity: 0.5; }
   50% { transform: scale(1.15) rotate(10deg); opacity: 1; }
@@ -151,14 +143,10 @@ body {
 .note.bad { color: var(--red); }
 .note.bad b { color: var(--red); }
 
-.reveal {
-  margin-top: 14px; font-size: 13.5px; font-weight: 800; color: var(--dim);
-  background: none; border: none; cursor: pointer; font-family: inherit; padding: 0;
-}
-.reveal:hover { color: var(--ink); }
-.mathbox { margin-top: 10px; display: grid; gap: 6px; font-size: 13px; color: var(--dim); background: var(--card-2); border-radius: var(--r-md); padding: 12px 14px; animation: pop-in 0.35s var(--spring); }
+.mathbox { margin-top: 14px; display: grid; gap: 5px; font-size: 13px; color: var(--dim); background: var(--card-2); border-radius: var(--r-md); padding: 12px 14px; }
+.mathbox .t { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dimmer); margin-bottom: 2px; }
 .mathbox b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.mathbox .act { color: var(--blue); cursor: pointer; background: none; border: none; font: inherit; font-weight: 800; padding: 0; text-align: left; }
+.mathbox .act { color: var(--blue); cursor: pointer; background: none; border: none; font: inherit; font-weight: 800; padding: 0; text-transform: none; letter-spacing: 0; }
 
 /* ---- party list ---- */
 .partier {
@@ -182,7 +170,7 @@ body {
 .partier.dim .who { font-weight: 400; }
 .partier.dim .ava { filter: saturate(0.6); }
 .partier.enter { animation: pop-in 0.45s var(--spring); }
-.partier.preview-row { border-radius: 10px; outline: 2px dotted rgba(74, 168, 255, 0.5); outline-offset: -2px; padding-left: 6px; padding-right: 6px; }
+.partier.preview-row { border-radius: 10px; outline: 2px dotted var(--blue); outline-offset: -2px; padding-left: 6px; padding-right: 6px; background: rgba(74, 168, 255, 0.08); }
 .badge { font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 2px 8px; background: var(--card-2); color: var(--dim); vertical-align: 2px; }
 .badge.you { background: var(--blue); color: #0d0d13; }
 .rule { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; color: var(--dimmer); font-size: 12px; }

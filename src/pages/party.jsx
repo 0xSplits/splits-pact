@@ -166,28 +166,21 @@ function TokenCard({ phase, party }) {
 
 function Gets() {
   return (
-    <ul className="gets">
-      <li><span className="tick">✓</span><span>100% of the dev buy</span></li>
-      <li><span className="tick">✓</span><span>Streaming matching bonus <span className="why">1:1, over {HOUSE.bonusStreamDays}d</span></span></li>
-      <li><span className="tick">✓</span><span>100% of trading fees, forever</span></li>
-      <li><span className="tick">✓</span><span>Full refund if the goal fails</span></li>
-    </ul>
+    <p className="gets">
+      100% of the dev buy · 1:1 bonus streamed over {HOUSE.bonusStreamDays}d ·
+      every trading fee, forever · full refund if the goal fails
+    </p>
   );
 }
 
 function MathBox({ party, econ, onModel }) {
-  const [open, setOpen] = useState(false);
-  if (!open) return <button className="reveal" onClick={() => setOpen(true)}>what does the math say? ▸</button>;
   return (
-    <>
-      <button className="reveal" onClick={() => setOpen(false)}>what does the math say? ▾</button>
-      <div className="mathbox">
-        <span>Party enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a launch-day buyer's price.</span>
-        <span>Party holds <b>{fmtPct(econ.partyShare)}</b> of supply; <b>{fmtPct(1 - econ.partyShare)}</b> stays in the market.</span>
-        {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units).</span>}
-        <button className="act" onClick={onModel}>open the full model →</button>
-      </div>
-    </>
+    <div className="mathbox">
+      <div className="t">the math <button className="act" onClick={onModel}>full model →</button></div>
+      <span>Enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a launch-day buyer's price.</span>
+      <span>Party holds <b>{fmtPct(econ.partyShare)}</b> of supply; <b>{fmtPct(1 - econ.partyShare)}</b> stays in the market.</span>
+      {party.yourWeight > 0 && <span>Your floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units).</span>}
+    </div>
   );
 }
 
