@@ -128,8 +128,7 @@ size/total, a clock scrubber). Throwaway styling, real mechanism math. See
 3. finalize()   at close, if min met, one settlement transaction:
                   ├─ dust pass: refund any depositor whose weight share
                   │    rounds below 1 unit (DD-4); recompute shares
-                  ├─ compute list mcap = 5x raised, floor at
-                  │    Clanker's ~10 ETH preset (DD-6 rev 2)
+                  ├─ compute list mcap = 5x raised (DD-6 rev 2)
                   ├─ call Clanker factory, vanilla v4 config:
                   │    ├─ DevBuy extension funded with the pool — the
                   │    │    atomic first swap, inside the deploy tx,
@@ -330,15 +329,23 @@ the party to stop growing. The prototype surfaced this as UI confusion; the
 defect was in the spec.
 
 New rule: **the list mcap is computed at finalize from the ACTUAL raise:
-`mcap = 5x raised`** (floor: Clanker's ~10 ETH preset, which strictly
-improves small parties' deal — acceptable asymmetry). This is possible
-because the token does not exist until the settlement transaction. With
-mcap = k x raised, party size cancels out of the economics entirely — the
-deal is **size-invariant**. At k = 5 with the 1:1 vault: every party enters
-at ~0.62x list, pays ~40% of the first outside buyer's price, and holds
-~32% of supply (~16% bought + ~16% bonus, 68% float) — whatever it raised.
-(k = 2.5 would put the party at ~52% of supply — thin float; 5x fixes that
-too.)
+`mcap = 5x raised`. No floor.** This is possible because the token does not
+exist until the settlement transaction, and arbitrary starting mcaps are
+permissionless on Clanker (v0.3.1+; the 10 ETH figure is only their
+default preset). With mcap = k x raised, party size cancels out of the
+economics entirely — the deal is **size-invariant at every scale**: every
+party enters at ~0.62x list, pays ~40% of the first outside buyer's price,
+and holds ~32% of supply (~16% bought + ~16% bonus, 68% float) — whether it
+raised 0.4 ETH or 10. (k = 2.5 would put the party at ~52% of supply —
+thin float; 5x fixes that too.)
+
+A 10 ETH mcap floor was briefly considered and rejected: it improves a
+micro party's entry price (~0.52x) but collapses its supply share to ~6% —
+a small crowd that launches a coin and owns almost none of it. Micro
+launches must be the same product at smaller scale; what makes a party
+feel good is "we own a third of this together," not the entry multiple.
+Knock-on: the min raise must scale with the party-size preset (e.g. ~10%
+of max), not sit at a fixed 1 ETH, or micro parties can't exist.
 
 Consequences:
 - **The join-more disincentive is fully dead.** No backer's arrival changes
