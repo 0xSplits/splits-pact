@@ -5,10 +5,11 @@ until marked decided. Two models are on the table:
 
 - **Model A** (below): stripped-down PACT — same primitive (sell Liquid Split
   units for USDC on a curve, proceeds to founder), fewer moving parts.
-- **Model B** (["Crowdfunded clanker launch"](#model-b-crowdfunded-clanker-launch)):
-  the direction currently favored — no founder proceeds at all; the pool
-  crowdfunds a Clanker token launch and everyone, founder included, is paid
-  in tokens and a share of the locked-LP fee stream.
+- **Model B rev 2** ("Crowd-launched vanilla Clanker", working name
+  **PartyClanker**): the direction currently favored — a crowd pools USDC
+  all-or-nothing and launches a completely standard Clanker coin; nobody is
+  paid; the crowd's return is the pre-bought coins, a vault bonus, and the
+  perpetual trading-fee stream, all pro-rata to Liquid Split units.
 
 Related reading: [PACT Equity](pact-equity.md) (v1 design fixes),
 [PACT Note](pact-note.md) (waterfall/cap variant), [Onchain](onchain.md)
@@ -83,32 +84,75 @@ Surfaces that remain: a create page (one form → one tx), a buy page (paste an
 offering address, see price + revenue history, buy), and a read-only status
 view. No accounts, no allocations, no database rows.
 
-## Model B: crowdfunded clanker launch
+## Model B rev 2: crowd-launched vanilla Clanker (working name: PartyClanker)
 
-The pivot: **rip out founder proceeds entirely.** The raise is not a sale of
-the founder's carve-out — it is a crowdfund of a Clanker token launch. The
-founder receives no USDC; they (like every backer) receive pro-rata tokens
-and, optionally, a share of the launch's fee stream. This deletes the
-self-dealing exploit at the root: with no proceeds pot, a founder deposit is
-just a deposit — it costs real money and buys the same thing it buys anyone.
+Rev 2 folds in two artifacts produced outside this doc (2026-07-12): the
+PartyClanker v0 build prompt and the interactive economics model. Rev 1's
+LP-pairing settlement is superseded by the **vanilla Clanker launch path**;
+rev 2 also settles the founder question harder than rev 1 did.
+
+The pivot: **nobody is paid, ever.** The raise is not a sale of anything —
+it is a crowd pooling USDC, all-or-nothing, to launch a completely standard
+Clanker coin as a single fair actor. The creator receives no USDC, no
+special units, no vault of their own, no fee carve-out. They contribute like
+everyone else — in many launches the "creator" is just the group member who
+clicked the button. Their only edge is the time-weighting's natural
+advantage: they know about the launch earliest and can commit at t=0, an
+earned, capital-backed advantage rather than a granted one.
+
+The crowd's return is threefold, all pro-rata to Liquid Split units: the
+pre-bought coin position (streamed), the vault bonus (streamed slower), and
+a cut of every trading fee (perpetual).
 
 ### Mechanism sketch
 
 ```text
-1. announce()   founder/agent creates a LaunchPool: token params, window,
-                founder carve-out (% of token supply, % of fee split), min raise
+1. announce()   creator/agent creates a LaunchPool: token params, window,
+                min raise, MAX raise, vault multiple + stream lengths
 2. deposit()    backers deposit USDC during the window; weight accrues
                 per second: accumulator += amount x elapsed_seconds.
-                withdraw() wipes accrued weight pro-rata (see below)
-3. finalize()   at close, if min met, atomically:
-                  ├─ deploy Clanker token
-                  ├─ pair pooled USDC + token supply into the LP (locked)
-                  ├─ distribute token allocation pro-rata by weight
-                  ├─ mint Liquid Split (1000 units) allocated by the same
-                  │    weights (quantized to 0.1%) + founder carve-out
-                  └─ set the Liquid Split as the Clanker fee-reward recipient
+                withdraw() wipes accrued weight pro-rata (DD-1).
+                deposits past the max raise revert (DD-4)
+3. finalize()   at close, if min met, one settlement transaction:
+                  ├─ dust pass: refund any depositor whose weight share
+                  │    rounds below 1 unit (DD-4); recompute shares
+                  ├─ swap pooled USDC → ETH (DD-5)
+                  ├─ call Clanker factory, vanilla v4 config:
+                  │    ├─ DevBuy extension funded with the pool — the
+                  │    │    atomic first swap, inside the deploy tx,
+                  │    │    before any sniper can act
+                  │    ├─ Vault extension = the early-backer bonus,
+                  │    │    beneficiary = Splits Vesting stream → LS
+                  │    ├─ reward recipient = the Liquid Split, forever
+                  │    └─ standard MEV module, standard locked LP
+                  ├─ mint Liquid Split (1000 units) allocated by
+                  │    time-weighted shares (quantized to 0.1%)
+                  └─ arm streams: pre-bought coins over ~7d, vault
+                       slower (≥3x), both terminating at the LS
 4. refund()     if min not met at close: deposits return, nothing launched
 ```
+
+**The settlement contract is the creator-of-record.** Because it is the
+deployer, every role Clanker grants a creator — token admin, dev-buy
+originator, vault admin — lands on an immutable contract whose only behavior
+is streaming to the crowd. Egalitarianism is enforced by construction: the
+"creator" address provably cannot keep anything.
+
+### Two incentives, two questions (decided)
+
+Time-weighting and the vault bonus are not competing designs — they answer
+different questions, and rev 2 keeps both:
+
+- **Vault bonus** answers *"why commit before TGE instead of buying at
+  launch?"* — bonus coins per coin the pool bought, streamed slower. It also
+  arithmetically cancels the pre-buy's own price impact (the dev buy fills
+  above list; free vault coins pull the crowd's blended entry back toward
+  ~0.8–1.0x list — the model artifact computes this live).
+- **Time-weighted accumulator** answers *"why deposit on day one instead of
+  the last block?"* — without it, unit allocation is time-neutral and the
+  window degenerates into a last-block pileup with no mid-raise demand
+  signal. It is also the creator's honest compensation (first to know =
+  first to commit).
 
 ### Why time-weighting instead of a price curve
 
@@ -137,8 +181,9 @@ see DD-1 below.
 
 ### Design decisions
 
-Mechanism design is being worked out in collaboration with Abram — DD-1 and
-DD-2 are the open collab items; DD-3 is a lean pending the same conversation.
+Mechanism design is being worked out in collaboration with Abram. DD-1 and
+the parameters of DD-4 are the open collab items; DD-2, DD-3, and DD-5 are
+decided.
 
 #### DD-1: Withdrawal policy — OPEN (leaning withdrawable)
 
@@ -176,41 +221,86 @@ framing, and the momentum-theater risk is partially self-limiting (a
 last-block whale exit is visible onchain and torches the launcher's and
 whale's reputation with it).
 
-#### DD-2: Founder reserve vs pure fair launch — OPEN
+#### DD-2: Founder reserve — DECIDED: 0% at v0
 
-Can the founder reserve >0% of the token supply and/or fee-split units at
-announce time?
+The v0 build prompt settles this harder than rev 1's middle path: no founder
+cash, no founder units, no founder vault, no fee carve-out — and it
+pre-rejects the compromise ("resist: 'surely 2% for the organizer' — that 2%
+recreates the promoter"). Rationale: radical egalitarianism is both the
+differentiator (the flattest launch structure on any chain) and the legal
+mitigant (the moment the pool pays a person, the group is financing someone
+and the product changes legal category).
 
-- Pro: a reserved fee-split slice is **retained future profits — a
-  barterable asset**. The founder can later sell those units for capital,
-  which is literally what mainline PACT does; a PACTCLANKER launch with a
-  reserve manufactures the exact asset a future PACT raise sells. Clean
-  recursion between the two products.
-- Pro: ongoing founder alignment after launch — with 0% reserve the founder
-  has no economic reason to keep building once the LP is seeded.
-- Pro: honest about how teams actually fund work, vs pretending everyone is
-  a pari-passu backer.
-- Con: **breaks the fair-launch invariant.** "Everyone gets what their
-  time-weighted capital bought" is a clean story; any reserve reintroduces
-  insider allocation, and the optics matter in the clanker/memecoin context
-  where fair launch is the norm.
-- Con: reopens questions a 0% reserve deletes: vesting/lockup on the
-  reserve (unvested reserve = launch-dump risk), disclosure UX, and where
-  the line is (5%? 20%?).
-- Middle path worth exploring: reserve allowed but **fee-split units only,
-  not token supply** — founder gets no dumpable tokens, only a slice of the
-  perpetual revenue stream. Dump-proof by construction (LS units are the
-  claim; selling them is a visible cap-table event, PACT-style, not a
-  market sell).
+The creator's compensation is the time-weighting's natural advantage: they
+can commit at t=0 with full knowledge. Earned, capital-backed, same terms as
+everyone.
 
-#### DD-3: Weight function — lean: linear dollar-seconds, no fill boost
+Parked to v2/v3: the founder-reserve-as-barterable-asset idea (a reserved
+fee-split slice is retained future profits the founder can later sell for
+capital — literally what mainline PACT sells; clean recursion between the
+products). It stays interesting and stays out of v0.
+
+#### DD-3: Weight function — DECIDED: linear dollar-seconds, no fill boost
 
 `accumulator += amount x elapsed_seconds`, share = accumulator / total.
-MetaDAO adds a fill boost (multiplier while the pool is sparse); we lean
-against it for v1: it's the bespoke, parameter-heavy part of their design
-(boost curve shape, sparsity measurement, path-dependence), and these
-contracts will ship unaudited — see "Complexity budget" below. Revisit if
-linear weighting demonstrably over-rewards block-one whales on long windows.
+Time-weighting is confirmed in (see "Two incentives" above) — it composes
+with the vault rather than competing with it. MetaDAO's fill boost stays
+out: it's the bespoke, parameter-heavy part of their design (boost curve
+shape, sparsity measurement, path-dependence), and these contracts ship
+unaudited — see "Complexity budget" below. Revisit if linear weighting
+demonstrably over-rewards block-one whales on long windows.
+
+#### DD-4: Dust, minimums, and a max raise — direction decided, params open
+
+The Liquid Split's 0.1% quantization is load-bearing in this design: units
+are the *only* asset, so a backer whose share rounds to zero units gets
+nothing from any of the three legs. Three interlocking rules:
+
+- **Dust refund (the guarantee).** At finalize, any depositor whose
+  time-weighted share rounds below 1 unit is refunded in full and excluded
+  from the launch. Safe in one pass: removing dust only *increases*
+  everyone else's shares, so no one else can drop below the threshold from
+  the removal. Side effect: rounding up to a whole unit is incentive to
+  commit more / earlier.
+- **Max raise (the sizing anchor).** A hard cap on total deposits, set at
+  announce. This is what lets backers size appropriately: $100 is a fine
+  check into a $1k raise and dust in a $1M raise — a $10k cap tells
+  everyone what game they're in before they commit. Deposits past the cap
+  revert (capacity can reopen if someone withdraws, DD-1). Two free
+  bonuses: the cap bounds the settlement swap's slippage (DD-5) and, with
+  the starting mcap, bounds the dev-buy's entry premium (the build prompt's
+  rule of thumb: pre-buy ≤ ~50% of starting mcap keeps average entry under
+  ~1.5x list). A full pool also restores scarcity-urgency that pure
+  time-weighting lacks.
+- **Min deposit (the soft filter).** A static floor (e.g. maxRaise / 1000)
+  screens obvious dust at the door. It cannot *guarantee* a unit under
+  time-weighting (a floor-sized deposit in the last minute still has tiny
+  weight) — the dust refund is the guarantee; the floor just reduces how
+  often it fires.
+
+Open params: the cap size per template, the floor formula, and whether the
+dust threshold is exactly 1 unit or slightly above.
+
+#### DD-5: Raise currency — DECIDED: raise in USDC, pool pairs WETH
+
+Verified against Clanker docs: the factory has allowed arbitrary quote
+tokens permissionlessly since v0.3.1, so a USDC-paired pool is *possible* —
+but USDC is not on the supported quote-token list (WETH, cbBTC, DEGEN,
+CLANKER, ANON, HIGHER, A0x, NATIVE), so it's off the indexed/frontend path
+and violates the "indistinguishable from any other Clanker launch"
+principle. Decisive detail: the DevBuy extension is ETH-denominated
+(`ClankerUniv4EthDevBuy`) — even a USDC-paired pool needs the dev buy to
+start from ETH (non-WETH pairs require an extra WETH↔paired PoolKey). A
+settlement swap is unavoidable, so the two knobs separate cleanly:
+
+- **Raise in USDC**: PACT UX as-is, and every DD-4 sizing rule (min, max,
+  dust) stays dollar-denominated and stable for the whole window.
+- **Pool pairs WETH**: fully vanilla, standard presets (~$30K / 10 ETH
+  starting mcap).
+- **One USDC→ETH swap inside finalize**, slippage bounded by the max raise.
+
+ETH-only raising would delete the swap but makes every sizing rule float
+with ETH price for the whole window — worse trade.
 
 ### Complexity budget
 
@@ -223,30 +313,42 @@ a nice-to-have. Ranked by risk:
    shape — one of the most battle-tested patterns in DeFi. O(1) per
    operation, no loops, ~50–100 lines. Wipe-on-withdraw adds one line
    (`accrued -= accrued * amount / balance`).
-2. **finalize() is the risky part.** One transaction spanning three external
-   systems: Clanker factory (token deploy + locked LP), Uniswap (pairing),
-   and the Liquid Split factory (mint with full allocation arrays). Each
-   integration is someone else's interface changing under us.
-3. **Distribution mechanics.** Token payout must be claim-based (no loops
-   over depositors); the LS mint needs the full `accounts[]` +
-   `initAllocations[]` arrays in the finalize tx, so the depositor list
-   must be stored onchain and finalize gas grows with backer count
-   (bounded: LS quantization caps meaningful holders at 1000).
+2. **The settlement transaction is the risky part.** One transaction
+   spanning: a USDC→ETH swap, the Clanker factory (vanilla deploy + DevBuy
+   + Vault + reward config), Splits Vesting (stream arming), and the Liquid
+   Split factory (mint with full allocation arrays). Every Clanker-side
+   piece is a stock, allowlisted, audited v4 component used thousands of
+   times — the new surface is only the adapter that sequences them.
+3. **Distribution mechanics.** The dust pass and LS mint need the full
+   `accounts[]` + `initAllocations[]` arrays in the finalize tx, so the
+   depositor list must be stored onchain and finalize gas grows with backer
+   count (bounded: LS quantization caps meaningful holders at 1000).
+   Everything downstream (coin streams, fees) flows through the LS —
+   claim-based, no loops.
 
 What we deliberately do NOT build: fill boost (DD-3), oversubscription caps
-with partial refunds (MetaDAO has these; our all-or-nothing min is one bool),
+with partial refunds (MetaDAO has these; our max raise is a hard revert and
+the min is one bool), a custom Clanker extension or LP routing (rev 1's
+LP-pairing idea required allowlisting and a nonstandard pool — dropped),
 and any governance/futarchy machinery.
 
 ### Where the USDC goes
 
-All of it pairs into the LP at finalize. Consequences:
+All of it funds the **dev buy** — Clanker's DevBuy extension, the atomic
+first swap executed inside the deploy transaction. The crowd is,
+collectively, the "dev." Consequences:
 
-- The launch price is fixed mechanically: `pooled USDC / tokens paired`.
-  This — plus the carve-out sizes — is what the founder actually "sets."
-- The pool is deep from block one, and the raise can't be rugged: the money
-  became permanently locked liquidity, custodied by Clanker's locker.
-- Backers effectively bought at the launch price; the market-buy alternative
-  (pool sweeps the token at launch) just gifts the price impact to snipers.
+- The crowd's fill happens before any block-zero sniper can act, and
+  Clanker's MEV modules guard the window right after. The crowd doesn't
+  out-race snipers; it makes the race start behind it.
+- The money still ends up as the pool's paired-side reserves — via the swap
+  — but the crowd gets coins for it instead of donating pure depth (why rev
+  1's LP-pairing was dropped: same economic end, nonstandard path, and the
+  crowd got nothing for its money).
+- One honest, disclosed cost: the pre-buy walks the launch curve, so the
+  crowd's average entry is above list price. Identical for every unit
+  holder, tunable (max raise vs starting mcap, DD-4), and arithmetically
+  offset by the vault bonus (target blended entry ≈ 0.8–1.0x list).
 
 ### What Model B keeps from PACT
 
@@ -264,19 +366,44 @@ What dies: the bonding curve, `buy()`, `withdraw()` (no proceeds exist),
 The diff-mechanism table above describes Model A; if Model B is chosen it
 gets its own table, since the fork is structural, not a trim.
 
+### What "done" looks like (from the v0 build prompt)
+
+One real group (50+ people, each in their own wallet), one vanilla Clanker
+coin on Base mainnet, launched through the full path: USDC in → units →
+all-or-nothing close → one settlement tx → coin streaming over ~7 days →
+fees claimable forever — **and the refund path exercised at least once (a
+deliberately failed test raise) with real money, documented publicly.** The
+proof is a launch anyone can verify on a block explorer, where the "creator"
+address is a contract that provably can't keep anything.
+
 ### Model B open questions
 
-(Withdrawal policy, founder reserve, and weight function moved to Design
-decisions above.)
+(Withdrawal policy → DD-1; founder reserve → DD-2 decided; weight function
+→ DD-3 decided; granularity/min/max → DD-4; raise currency → DD-5 decided.)
 
-- **Fee-split granularity.** LS quantizes to 0.1%; small backers may round
-  to zero units on the fee split even though token distribution (18
-  decimals) pays them fine. Dust rule needed; token-only for the long tail?
-- **Clanker integration surface.** Which Clanker version/factory, what the
-  reward-recipient config actually allows, single-tx atomicity of
-  finalize() across token deploy + LP + LS mint.
+- **DevBuy output routing.** Confirm in `ClankerUniv4EthDevBuy` whether the
+  dev-buy recipient is configurable or lands with the deployer. Either
+  works (the settlement adapter is the deployer and can stream what it
+  receives), but the answer shapes the adapter. First thing to check.
+- **"50+ day-one holders" vs everything-streams.** The survival stat is
+  about distinct wallets holding the coin on day one, but here day-one
+  supply sits in a vesting stream terminating at the LS until people claim.
+  If the effect is behavioral, streamed claims may count; if it's about
+  what explorers/traders see, a launch whose crowd supply visibly sits in
+  two contracts for a week reads differently. Needs a position.
+- **Vault stream parameters.** Multiple (1.0x = "two coins for the price of
+  one" is the recruiting number; higher multiples thin the outside float)
+  and stream ratio (bonus ≥3x slower than the bought coins, per the model's
+  anti-dump check).
+- **Unit transferability at v0.** Flywheel vs optics; genuinely open.
+- **Platform fee share.** Does any slice of the 80% creator-side fee go to
+  an interface/platform at v0, or does everything go to units?
+- **Pin the empirical claims.** The 1.27M-launch study (50+ holders, 86%
+  never trade, vault→~2x survival odds) is load-bearing for several checks
+  in the model; sources should be linked before the PRD treats it as fact.
 - **Does anything remain "PACT"?** Model B is a launchpad with a
-  revenue-split cap table attached. Naming/positioning question.
+  revenue-split cap table attached. Naming/positioning question — the
+  working name is PartyClanker.
 
 ## Open questions (Model A)
 
