@@ -294,7 +294,7 @@ function LaunchedCard({ party }) {
         <button className="btn">Claim coins</button>
         <button className="btn ghost">Claim fees</button>
       </div>
-      <div className="note">Your {units} units earn {fmtPct(f)} of every trade's fee, forever.</div>
+      <div className="note">Your {units} units earn {fmtPct(f)} of the launcher fee on every trade, forever.</div>
     </div>
   );
 }
