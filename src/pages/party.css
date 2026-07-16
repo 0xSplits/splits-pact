@@ -156,6 +156,8 @@ body {
 .stat-row .stat.hero b { font-size: 34px; color: var(--blue); }
 .stat-row .stat.hero b .hero-tail { font-size: 16px; font-weight: 700; color: var(--dimmer); font-variant-numeric: tabular-nums; }
 
+.range-note { font-size: 12px; color: var(--dimmer); margin: 2px 0 12px; }
+
 .note { font-size: 13px; color: var(--dim); margin-top: 10px; }
 .note b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .note.bad { color: var(--red); }

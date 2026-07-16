@@ -264,11 +264,14 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
       <Gets />
       <div className="divider" />
       {isIn && (
-        <div className="stat-row" style={{ marginBottom: 12 }}>
-          <span className="stat hero"><b>{floorP.slice(0, floorCut)}<small className="hero-tail">{floorP.slice(floorCut)}%</small></b><span>guaranteed at least — only goes up</span></span>
-          <span className="stat"><b>{fmtPct(party.yourShare)}</b><span>at close{party.preview > 0 ? ' (previewing)' : ''}</span></span>
-          <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
-        </div>
+        <>
+          <div className="stat-row">
+            <span className="stat hero"><b>{floorP.slice(0, floorCut)}<small className="hero-tail">{floorP.slice(floorCut)}%</small></b><span>if the party fills — only goes up</span></span>
+            <span className="stat"><b>{fmtPct(party.yourShare)}</b><span>if no one else backs{party.preview > 0 ? ' (previewing)' : ''}</span></span>
+            <span className="stat"><b>{fmtEth(party.committedEth)}</b><span>pledged</span></span>
+          </div>
+          <div className="range-note">you'll finish somewhere in between</div>
+        </>
       )}
       <div className="join-row">
         <span className="inwrap">
@@ -286,7 +289,7 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
         ? <div className="note bad">You've been bumped under the dust bar — back more to rejoin the party.</div>
         : dusty
           ? <div className="note bad">Too small — a full party would squeeze you under the dust bar and refund you.</div>
-          : party.preview > 0 && !isIn && <div className="note"><b>{fmtPct(party.yourShare)}</b> of the party → at least <b>{fmtPct(party.floorShare)}</b> if it fills. That floor is yours.</div>}
+          : party.preview > 0 && !isIn && <div className="note"><b>{fmtPct(party.yourShare)}</b> if no one else backs → at least <b>{fmtPct(party.floorShare)}</b> if it fills. That floor is yours.</div>}
       {party.preview > 0 && party.preview < (parseFloat(amt) || 0) && <div className="note">Only {fmtEth(party.room)} of room left.</div>}
       {isIn && <div style={{ marginTop: 12 }}><button className="btn danger sm" onClick={() => setConfirming(true)}>Yank</button></div>}
       <MathBox party={party} econ={econ} onModel={onModel} />
