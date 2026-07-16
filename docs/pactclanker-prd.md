@@ -1,8 +1,14 @@
 # PACTCLANKER PRD (working draft)
 
-Status: sketch, lives on branch `pactclanker`. This is the starting point for a
-stripped-down PACT — fewer moving parts, small contract tweaks, same core
-primitive. Everything below is a proposal until marked decided.
+Status: sketch, lives on branch `pactclanker`. Everything below is a proposal
+until marked decided. Two models are on the table:
+
+- **Model A** (below): stripped-down PACT — same primitive (sell Liquid Split
+  units for USDC on a curve, proceeds to founder), fewer moving parts.
+- **Model B** (["Crowdfunded clanker launch"](#model-b-crowdfunded-clanker-launch)):
+  the direction currently favored — no founder proceeds at all; the pool
+  crowdfunds a Clanker token launch and everyone, founder included, is paid
+  in tokens and a share of the locked-LP fee stream.
 
 Related reading: [PACT Equity](pact-equity.md) (v1 design fixes),
 [PACT Note](pact-note.md) (waterfall/cap variant), [Onchain](onchain.md)
@@ -77,7 +83,92 @@ Surfaces that remain: a create page (one form → one tx), a buy page (paste an
 offering address, see price + revenue history, buy), and a read-only status
 view. No accounts, no allocations, no database rows.
 
-## Open questions
+## Model B: crowdfunded clanker launch
+
+The pivot: **rip out founder proceeds entirely.** The raise is not a sale of
+the founder's carve-out — it is a crowdfund of a Clanker token launch. The
+founder receives no USDC; they (like every backer) receive pro-rata tokens
+and, optionally, a share of the launch's fee stream. This deletes the
+self-dealing exploit at the root: with no proceeds pot, a founder deposit is
+just a deposit — it costs real money and buys the same thing it buys anyone.
+
+### Mechanism sketch
+
+```text
+1. announce()   founder/agent creates a LaunchPool: token params, window,
+                founder carve-out (% of token supply, % of fee split), min raise
+2. deposit()    backers lock USDC during the window. No withdrawals.
+                weight = amount x time-remaining-at-deposit
+3. finalize()   at close, if min met, atomically:
+                  ├─ deploy Clanker token
+                  ├─ pair pooled USDC + token supply into the LP (locked)
+                  ├─ distribute token allocation pro-rata by weight
+                  ├─ mint Liquid Split (1000 units) allocated by the same
+                  │    weights (quantized to 0.1%) + founder carve-out
+                  └─ set the Liquid Split as the Clanker fee-reward recipient
+4. refund()     if min not met at close: deposits return, nothing launched
+```
+
+### Why time-weighting instead of a price curve
+
+A pure pro-rata pool is time-neutral: $1 buys the same share whenever it
+arrives, so rational backers wait until the last block and the founder gets
+no demand signal mid-raise. A bonding curve fixes that by charging late
+buyers a worse price. Time-weighting (à la MetaDAO) fixes it differently:
+early backers earn more weight per dollar, and the "price" they pay for that
+edge is the opportunity cost of capital locked longer — not a worse unit
+price. Deposits are locked once in (weight must stay backed by capital at
+close; withdrawable deposits would let someone accrue weight then pull the
+money). Refunds exist only on the all-or-nothing failure path, which is
+nearly free here since nothing exists until finalize.
+
+Weight function is an open choice; the default proposal is linear:
+`weight = amount x (closeTime - depositTime)`.
+
+### Where the USDC goes
+
+All of it pairs into the LP at finalize. Consequences:
+
+- The launch price is fixed mechanically: `pooled USDC / tokens paired`.
+  This — plus the carve-out sizes — is what the founder actually "sets."
+- The pool is deep from block one, and the raise can't be rugged: the money
+  became permanently locked liquidity, custodied by Clanker's locker.
+- Backers effectively bought at the launch price; the market-buy alternative
+  (pool sweeps the token at launch) just gifts the price impact to snipers.
+
+### What Model B keeps from PACT
+
+- **The Liquid Split, in a new role.** Clanker streams LP trading fees to a
+  configurable reward recipient. Point that at a Liquid Split minted at
+  finalize with allocations = the same time-weighted shares. Backers hold a
+  perpetual fee-revenue cap table — PACT's revenue-split DNA — and
+  mint-once-at-close fits the LS1155 constraint exactly, because final
+  weights are only known at that moment.
+- **All-or-nothing escrow.** `deposit`/`refund` is the surviving skeleton of
+  the Offering's min-raise machinery.
+
+What dies: the bonding curve, `buy()`, `withdraw()` (no proceeds exist),
+`closeAndWithdraw()` (becomes `finalize()`), allocation links, the server DB.
+The diff-mechanism table above describes Model A; if Model B is chosen it
+gets its own table, since the fork is structural, not a trim.
+
+### Model B open questions
+
+- **Founder comp shape.** Fixed % of token supply, % of the fee split, or
+  both? Vesting/lock on the founder's tokens to prevent launch-dump?
+- **Weight function.** Linear in time-remaining is the simple default; does
+  it over-reward block-one deposits on long windows (first-hour whale gets
+  ~2x a mid-window depositor)? Consider a capped or sublinear boost.
+- **Fee-split granularity.** LS quantizes to 0.1%; small backers may round
+  to zero units on the fee split even though token distribution (18
+  decimals) pays them fine. Dust rule needed; token-only for the long tail?
+- **Clanker integration surface.** Which Clanker version/factory, what the
+  reward-recipient config actually allows, single-tx atomicity of
+  finalize() across token deploy + LP + LS mint.
+- **Does anything remain "PACT"?** Model B is a launchpad with a
+  revenue-split cap table attached. Naming/positioning question.
+
+## Open questions (Model A)
 
 - **What does "clanker" commit us to?** If the name implies agent/bot
   deployability (à la Clanker on Base), the factory needs a single-call,
