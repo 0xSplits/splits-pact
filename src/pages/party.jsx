@@ -35,12 +35,18 @@ const rnd = i => ((((i + 13) * 2654435761) >>> 0) % 1000) / 1000;
 function genCrowd(n, totalEth) {
   const weights = Array.from({ length: n }, (_, i) => 0.04 + rnd(i) * rnd(i) * 2.2);
   const wSum = weights.reduce((s, w) => s + w, 0);
-  return weights.map((w, i) => ({
+  const crowd = weights.map((w, i) => ({
     name: NAMES[i % NAMES.length] + (i >= NAMES.length ? i : '') + '.eth',
     eth: totalEth * w / wSum,
     tFrac: i === 0 ? 0 : rnd(i * 7) * 0.92,
     launcher: i === 0,
   }));
+  // Guaranteed near-dust: the last 1-2 backers are tiny early checks riding just
+  // above the 0.1% dust bar, so a moderate back (or bigger crowd) bumps them under it.
+  [{ eth: 0.0008, tFrac: 0.12 }, { eth: 0.0013, tFrac: 0.2 }]
+    .slice(0, n >= 5 ? 2 : 1)
+    .forEach((t, j) => Object.assign(crowd[n - 1 - j], t));
+  return crowd;
 }
 
 const weightOf = p => p.eth * (1 - p.tFrac);
@@ -270,9 +276,11 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
         </button>
         {burst > 0 && <Burst key={burst} />}
       </div>
-      {dusty
-        ? <div className="note bad">Too small — a full party would squeeze you under the dust bar and refund you.</div>
-        : party.preview > 0 && !isIn && <div className="note"><b>{fmtPct(party.yourShare)}</b> of the party → at least <b>{fmtPct(party.floorShare)}</b> if it fills. That floor is yours.</div>}
+      {isIn && party.yourShare < HOUSE.dustShare
+        ? <div className="note bad">You've been bumped under the dust bar — back more to rejoin the party.</div>
+        : dusty
+          ? <div className="note bad">Too small — a full party would squeeze you under the dust bar and refund you.</div>
+          : party.preview > 0 && !isIn && <div className="note"><b>{fmtPct(party.yourShare)}</b> of the party → at least <b>{fmtPct(party.floorShare)}</b> if it fills. That floor is yours.</div>}
       {party.preview > 0 && party.preview < (parseFloat(amt) || 0) && <div className="note">Only {fmtEth(party.room)} of room left.</div>}
       {isIn && <div style={{ marginTop: 12 }}><button className="btn danger sm" onClick={() => setConfirming(true)}>Yank</button></div>}
       <MathBox party={party} econ={econ} onModel={onModel} />
@@ -369,10 +377,19 @@ function Partiers({ party }) {
   }).sort((a, b) => b.share - a.share);
   const active = withShare.filter(r => r.proj >= HOUSE.dustShare);
   const dust = withShare.filter(r => r.proj < HOUSE.dustShare);
+  // A row falling active → refunded gets a one-shot flash + 🥳→😭 beat: track
+  // each row's previous section, stamp the fall, wear .just-bumped for ~0.8s.
+  const prevSection = useRef(new Map());
+  const bumpedAt = useRef(new Map());
+  dust.forEach(r => { if (prevSection.current.get(r.name) === 'active') bumpedAt.current.set(r.name, Date.now()); });
+  useEffect(() => {
+    withShare.forEach(r => prevSection.current.set(r.name, r.proj >= HOUSE.dustShare ? 'active' : 'dust'));
+  });
+  const justBumped = r => Date.now() - (bumpedAt.current.get(r.name) || 0) < 800;
   const Row = ({ r, dim }) => (
     <div
       data-flip={r.name}
-      className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}`}
+      className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}${dim && justBumped(r) ? ' just-bumped' : ''}`}
       title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}
     >
       <span className="ava">{dim ? '😭' : r.you ? '🫵' : '🥳'}</span>
