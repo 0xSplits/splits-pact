@@ -1,7 +1,8 @@
 // PartyClanker playable mock — UX playground only, no chain, no API.
 // Throwaway rainbow-dark styling (deliberately NOT the PACT app design system).
-// House rules follow the PRD: fixed-multiple vault (DD-6), mcap = 2.5x max
-// raise (DD-6), time-weighted shares (DD-3), dust bar 0.1% (DD-4), ETH (DD-5).
+// House rules follow the PRD: fixed-multiple vault (DD-6), mcap = 5x the actual
+// raise (DD-6 rev 2 — size-invariant deal, no floor), time-weighted shares
+// (DD-3), dust bar 0.1% (DD-4), ETH (DD-5).
 //
 // Time mechanics, as the mock models them: a pledge's weight is locked at
 // commit (amount x window-remaining — equal to MetaDAO's accumulator measured
@@ -19,7 +20,6 @@ const HOUSE = {
   icon: '🎈',
   min: 1,
   max: 10,
-  mcap: 25,          // 2.5x max, per DD-6
   mult: 1,           // one bonus coin per coin bought, per DD-6
   windowDays: 4,
   boughtStreamDays: 7,
@@ -58,9 +58,13 @@ const fmtPct = v => {
 const fmtCoins = v => (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v.toFixed(0));
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Dev buy on the launch curve with a fixed-multiple vault (DD-6).
+// Dev buy on the launch curve with a fixed-multiple vault (DD-6). The list mcap
+// is computed from the ACTUAL raise (DD-6 rev 2): 5x raised, no floor. Because
+// mcap scales with the raise, party size cancels out entirely — every party,
+// however small, enters at the same multiple of list and holds the same share.
 function partyEcon(D) {
-  const p0 = HOUSE.mcap / S;
+  const mcap = 5 * D;
+  const p0 = mcap / S;
   let v = 0, bought = 0;
   for (let i = 0; i < 25; i++) {
     const x0 = S - v, y0 = x0 * p0;
@@ -70,7 +74,7 @@ function partyEcon(D) {
   const y0 = (S - v) * p0;
   const prem = 1 + D / y0;
   return {
-    bought, vault: v,
+    mcap, bought, vault: v,
     partyShare: (bought + v) / S,
     prem,
     blended: prem / (1 + HOUSE.mult),
@@ -212,7 +216,7 @@ function MathBox({ party, econ, onModel }) {
     <div className="mathbox">
       <div className="t">the math <button className="act" onClick={onModel}>full model →</button></div>
       <ul className="checks">
-        <li>Lists at <b>{HOUSE.mcap} ETH</b> — 2.5× the {HOUSE.max} ETH max</li>
+        <li>Lists at <b>{econ.mcap.toFixed(0)} ETH</b> — always 5× what's raised; same deal at every size, however small</li>
         <li>Enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a TGE buyer's price</li>
         <li><b>{fmtPct(econ.partyShare)}</b> of supply to the party, <b>{fmtPct(1 - econ.partyShare)}</b> to the market</li>
         {party.yourWeight > 0 && <li>Floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units) — only goes up</li>}
