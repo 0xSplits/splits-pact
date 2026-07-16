@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PartyClanker — playable mock</title>
+<script>
+  // Apply the saved style preset before first paint to avoid a theme flash.
+  try {
+    var s = localStorage.getItem('pact-style');
+    if (s && s !== 'clarity') document.documentElement.setAttribute('data-style', s);
+    if (s === 'cipher') document.documentElement.classList.add('dark');
+  } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/src/app.css">
+</head>
+<body>
+  <div class="min-h-screen flex justify-center items-start pt-14 pb-12 px-4">
+    <div class="w-full max-w-4xl">
+      <div id="app"></div>
+    </div>
+  </div>
+
+<script type="module" src="/src/pages/party.jsx"></script>
+</body>
+</html>

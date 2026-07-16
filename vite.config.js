@@ -8,6 +8,7 @@ const page = name => fileURLToPath(new URL(name, import.meta.url));
 function cleanRouteHtml(url) {
   const pathname = new URL(url, 'http://pact.local').pathname;
   if (pathname === '/create') return '/create.html';
+  if (pathname === '/party') return '/party.html';
   if (pathname === '/pacts' || pathname === '/pacts/') return '/index.html';
   if (/^\/pacts\/[^/]+\/?$/.test(pathname)) return '/status.html';
   if (/^\/pacts\/[^/]+\/allocations\/[^/]+\/?$/.test(pathname)) return '/buy.html';
@@ -40,6 +41,7 @@ export default defineConfig({
         create: page('create.html'),
         status: page('status.html'),
         buy: page('buy.html'),
+        party: page('party.html'),
       },
     },
   },

@@ -1,0 +1,98 @@
+/* PartyClanker playable mock. Leans on app.css tokens so all style presets work. */
+
+.pc-devbar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 14px; font-size: var(--text-sm);
+}
+.pc-devbar .label { color: var(--muted); margin-right: 2px; }
+.pc-pill {
+  border: 1px solid var(--paper-border); border-radius: 999px;
+  background: var(--paper); color: var(--muted2);
+  padding: 3px 10px; font-size: var(--text-sm); cursor: pointer;
+}
+.pc-pill.on { background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-bg); }
+
+.pc-card {
+  background: var(--paper); border: 1px solid var(--paper-border);
+  border-radius: var(--radius-large); padding: 22px 24px;
+}
+
+.pc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 760px) { .pc-grid { grid-template-columns: 1fr; } }
+.pc-col { display: grid; gap: 14px; }
+
+.pc-token { display: flex; align-items: center; gap: 14px; }
+.pc-icon {
+  width: 52px; height: 52px; border-radius: 999px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; background: var(--field-bg); border: 1px solid var(--paper-border);
+}
+.pc-ticker { font-size: var(--text-3xl); font-weight: 650; letter-spacing: -0.01em; }
+
+.pc-bar { position: relative; height: 18px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--paper); overflow: visible; margin: 26px 0 6px; }
+.pc-bar .fill { position: absolute; inset: 2px auto 2px 2px; border-radius: 999px; background: var(--ok); }
+.pc-bar .you { position: absolute; top: 2px; bottom: 2px; background: var(--marker); opacity: .85; border-radius: 999px; }
+.pc-bar .min-tick { position: absolute; top: -7px; bottom: -7px; width: 0; border-left: 2px dotted var(--muted); }
+.pc-bar .min-tick span { position: absolute; top: -18px; left: -4px; font-size: var(--text-xs); color: var(--muted); white-space: nowrap; }
+.pc-bar-caps { display: flex; justify-content: space-between; font-size: var(--text-sm); color: var(--muted); }
+
+.pc-clock { display: flex; align-items: baseline; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.pc-clock .time { font-family: 'JetBrains Mono', monospace; font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-decay { font-size: var(--text-sm); color: var(--muted2); }
+.pc-decay b { color: var(--ink); }
+
+.pc-gets { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pc-gets li { display: flex; gap: 10px; align-items: baseline; }
+.pc-gets .tick { color: var(--ok); font-weight: 700; flex: none; }
+.pc-gets .why { color: var(--muted); font-size: var(--text-sm); }
+
+.pc-hero { display: flex; gap: 26px; align-items: baseline; flex-wrap: wrap; margin: 6px 0 2px; }
+.pc-hero .big { font-size: var(--text-3xl); font-weight: 650; font-variant-numeric: tabular-nums; }
+.pc-hero .sub, .pc-stat .sub { display: block; font-size: var(--text-sm); color: var(--muted); font-weight: 500; }
+.pc-stat { font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.pc-input-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.pc-input-row input {
+  flex: 1; min-width: 0; font: inherit; font-variant-numeric: tabular-nums;
+  padding: 9px 12px; border: 1px solid var(--paper-border); border-radius: var(--radius-default);
+  background: var(--field-bg); color: var(--ink);
+}
+.pc-input-row input:focus { outline: none; background: var(--field-bg-focus); border-color: var(--line-strong); }
+.pc-input-row .unit { color: var(--muted); font-size: var(--text-sm); }
+
+.pc-readouts { display: grid; gap: 5px; margin-top: 12px; font-size: var(--text-sm); color: var(--muted2); }
+.pc-readouts b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.pc-readouts .warn { color: var(--pending); }
+.pc-readouts .bad { color: var(--danger); }
+
+.pc-partier { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--table-line); font-variant-numeric: tabular-nums; }
+.pc-partier:first-of-type { border-top: 0; }
+.pc-partier .ava { width: 26px; height: 26px; border-radius: 999px; background: var(--field-bg); border: 1px solid var(--paper-border); flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.pc-partier .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-partier .pct { font-weight: 600; }
+.pc-partier.dim { color: var(--muted); }
+.pc-badge { font-size: var(--text-xs); border: 1px solid var(--paper-border); border-radius: 999px; padding: 1px 7px; color: var(--muted2); background: var(--field-bg); }
+.pc-badge.you { background: var(--marker); border-color: var(--marker); color: #fff; }
+
+.pc-refunded-rule { display: flex; align-items: center; gap: 8px; margin: 12px 0 2px; color: var(--muted); font-size: var(--text-sm); }
+.pc-refunded-rule::after { content: ''; flex: 1; border-top: 1px solid var(--table-line); }
+
+.pc-stream { margin-top: 10px; }
+.pc-stream .lane { margin-bottom: 12px; }
+.pc-stream .lane-top { display: flex; justify-content: space-between; font-size: var(--text-sm); margin-bottom: 4px; }
+.pc-stream .lane-top b { font-variant-numeric: tabular-nums; }
+.pc-stream .track { height: 10px; border-radius: 999px; background: var(--field-bg); border: 1px solid var(--paper-border); position: relative; overflow: hidden; }
+.pc-stream .track .done { position: absolute; inset: 0 auto 0 0; }
+.pc-stream .track .done.bought { background: var(--marker); }
+.pc-stream .track .done.bonus { background: var(--pending); }
+
+.pc-banner { border: 1px solid var(--paper-border); border-left: 3px solid var(--marker); border-radius: var(--radius-default); padding: 10px 14px; font-size: var(--text-sm); margin-bottom: 14px; background: var(--paper); }
+.pc-banner.ok { border-left-color: var(--ok); }
+.pc-banner.bad { border-left-color: var(--danger); }
+
+.pc-foot { margin-top: 16px; font-size: var(--text-sm); color: var(--muted); line-height: 1.6; }
+.pc-foot a { color: var(--marker); }
+
+.pc-modal-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.pc-modal { background: var(--paper); border: 1px solid var(--paper-border); border-radius: var(--radius-large); padding: 22px 24px; max-width: 420px; width: calc(100% - 40px); }
+.pc-modal .actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
