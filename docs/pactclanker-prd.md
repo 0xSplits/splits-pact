@@ -105,12 +105,16 @@ pre-bought coin position (streamed), the vault bonus (streamed slower), and
 a cut of every trading fee (perpetual).
 
 **Live modeler:** [pactclanker-model.html](pactclanker-model.html) — a
-backer-POV calculator over the knobs below (your commit size and timing,
-window, max raise, crowd, starting mcap, vault multiple, stream lengths,
-fee cut). It computes your units (with the DD-4 dust rule live), your % of
-supply, entry price vs list and vs a TGE buyer, the claim schedule over
-time, and fee payback. Open it locally in a browser; everything is
-client-side.
+backer-POV calculator. House rules (DD-3..6) are locked; the free knobs are
+your commit size/timing, party size, the crowd, and frame assumptions. It
+computes your units (with the DD-4 dust rule live), your % of supply, entry
+price vs list and vs a TGE buyer, the claim schedule, and fee payback.
+Client-side; open in a browser.
+
+**Playable mock:** `/party` in the app (`npm run dev`) — the full backer UX
+with mock data and a floating mock-state card (lifecycle states, crowd
+size/total, a clock scrubber). Throwaway styling, real mechanism math. See
+"UX prototype findings" below for what it established.
 
 ### Mechanism sketch
 
@@ -124,6 +128,8 @@ client-side.
 3. finalize()   at close, if min met, one settlement transaction:
                   ├─ dust pass: refund any depositor whose weight share
                   │    rounds below 1 unit (DD-4); recompute shares
+                  ├─ compute list mcap = 5x raised, floor at
+                  │    Clanker's ~10 ETH preset (DD-6 rev 2)
                   ├─ call Clanker factory, vanilla v4 config:
                   │    ├─ DevBuy extension funded with the pool — the
                   │    │    atomic first swap, inside the deploy tx,
@@ -153,8 +159,8 @@ different questions, and rev 2 keeps both:
 - **Vault bonus** answers *"why commit before TGE instead of buying at
   launch?"* — bonus coins per coin the pool bought, streamed slower. It also
   arithmetically cancels the pre-buy's own price impact (the dev buy fills
-  above list; free vault coins pull the crowd's blended entry back toward
-  ~0.8–1.0x list — the model artifact computes this live).
+  above list; free vault coins pull the crowd's blended entry to ~0.62x
+  list — constant at every party size under DD-6 rev 2).
 - **Time-weighted accumulator** answers *"why deposit on day one instead of
   the last block?"* — without it, unit allocation is time-neutral and the
   window degenerates into a last-block pileup with no mid-raise demand
@@ -273,12 +279,10 @@ nothing from any of the three legs. Three interlocking rules:
   announce. This is what lets backers size appropriately: $100 is a fine
   check into a $1k raise and dust in a $1M raise — a $10k cap tells
   everyone what game they're in before they commit. Deposits past the cap
-  revert (capacity can reopen if someone withdraws, DD-1). Two free
-  bonuses: the cap bounds the settlement swap's slippage (DD-5) and, with
-  the starting mcap, bounds the dev-buy's entry premium (the build prompt's
-  rule of thumb: pre-buy ≤ ~50% of starting mcap keeps average entry under
-  ~1.5x list). A full pool also restores scarcity-urgency that pure
-  time-weighting lacks.
+  revert (capacity can reopen if someone withdraws, DD-1). Under DD-6
+  rev 2 the cap no longer prices anything (the mcap scales with the actual
+  raise); it caps party size, anchors dust/min sizing, and a full pool
+  restores scarcity-urgency that pure time-weighting lacks.
 - **Min deposit (the soft filter).** A static floor (e.g. maxRaise / 1000)
   screens obvious dust at the door. It cannot *guarantee* a unit under
   time-weighting (a floor-sized deposit in the last minute still has tiny
@@ -315,7 +319,40 @@ float against the dollar during the window. Mitigations: windows are short
 (days), and the UI shows live USD equivalents next to every ETH figure so
 backers still size in dollars mentally.
 
-#### DD-6: Sizing guardrail and vault shape — DECIDED
+#### DD-6 (rev 2): Vault shape and raise-scaled list price — DECIDED
+
+Rev 2 (2026-07-16, out of the UX prototype exercise): the rev 1 guardrail
+("mcap ≥ 2.5x the MAX raise, fixed at announce") is **superseded**. Anchoring
+to the max meant the deal's quality depended on fill level — an underfilled
+party entered far under list while a full one brushed the ceiling, which made
+every ownership number conditional on fill and made members quietly prefer
+the party to stop growing. The prototype surfaced this as UI confusion; the
+defect was in the spec.
+
+New rule: **the list mcap is computed at finalize from the ACTUAL raise:
+`mcap = 5x raised`** (floor: Clanker's ~10 ETH preset, which strictly
+improves small parties' deal — acceptable asymmetry). This is possible
+because the token does not exist until the settlement transaction. With
+mcap = k x raised, party size cancels out of the economics entirely — the
+deal is **size-invariant**. At k = 5 with the 1:1 vault: every party enters
+at ~0.62x list, pays ~40% of the first outside buyer's price, and holds
+~32% of supply (~16% bought + ~16% bonus, 68% float) — whatever it raised.
+(k = 2.5 would put the party at ~52% of supply — thin float; 5x fixes that
+too.)
+
+Consequences:
+- **The join-more disincentive is fully dead.** No backer's arrival changes
+  anyone's multiple; growth is purely positive, aligned with the 50+ holder
+  survival thesis.
+- **Max raise stops pricing anything** — it only caps party size (and
+  anchors DD-4's dust/min sizing). The launcher form stays name + icon +
+  size cap.
+- Cost: the pool config is computed, not Clanker's stock preset — a small
+  dent in "indistinguishable from any vanilla launch."
+
+The rev 1 stress-case analysis below is retained for the record.
+
+#### DD-6 (rev 1, superseded): Sizing guardrail and vault shape
 
 The stress case that forced this: 10 ETH committed against a 10 ETH list
 price with a flat 5% vault. The party's average fill hits ~2.05x list, spot
@@ -403,8 +440,8 @@ collectively, the "dev." Consequences:
   crowd got nothing for its money).
 - One honest, disclosed cost: the pre-buy walks the launch curve, so the
   crowd's average entry is above list price. Identical for every unit
-  holder, tunable (max raise vs starting mcap, DD-4), and arithmetically
-  offset by the vault bonus (target blended entry ≈ 0.8–1.0x list).
+  holder, fixed by construction (mcap = 5x raised, DD-6 rev 2), and more
+  than offset by the vault bonus (blended entry ~0.62x list at any size).
 
 ### What Model B keeps from PACT
 
@@ -431,6 +468,51 @@ fees claimable forever — **and the refund path exercised at least once (a
 deliberately failed test raise) with real money, documented publicly.** The
 proof is a launch anyone can verify on a block explorer, where the "creator"
 address is a contract that provably can't keep anything.
+
+### UX prototype findings (2026-07-16)
+
+A day of building the playable mock + locked modeler settled real design
+questions. Recorded here so they survive the throwaway code:
+
+1. **The deal fits on one card.** Four check-marked lines, a raise bar, and
+   two ownership numbers explain the entire mechanism to a stranger. The
+   biggest UX risk — "is this explainable?" — is retired.
+2. **The floor is the hero number.** The honest emotional shape of
+   time-weighting is: *your guaranteed minimum only ever rises* (capacity
+   weight decays every second; joins replace reserved weight 1:1; yanks
+   raise it — a pure ratchet), while *your ceiling drops when humans act*.
+   Show ownership as a range: "X% if it fills (only goes up) … Y% if no one
+   else backs." The raw live-accumulator share was tried and CUT: it drifts
+   toward pro-rata-by-balance, so early/small backers watch it decay —
+   mathematically honest, emotionally wrong, and it confused its first
+   viewer. Contract read functions should serve floor + at-close-projection
+   directly.
+3. **The party list must be event-quiet.** Sort and display by at-close
+   projections: the list holds perfectly still under ambient time, and
+   moves (with a spring) only when someone backs, arrives, or yanks —
+   motion means a human acted.
+4. **Dust/bump is legible game drama.** A partier falling below 0.1% slides
+   to a "refunded at close" section with a 😭 beat. DD-4's rule needs no
+   explanation when the UI performs it. Getting bumped from your own party
+   (launcher included) works the same way.
+5. **House rules validated; launcher form collapsed.** Every knob removed
+   made the product more explainable. With DD-6 rev 2, max raise prices
+   nothing — the launcher form is name + icon + party-size cap, full stop.
+6. **DD-1 pressure-tested.** The mock implements withdraw-any-time with
+   full pro-rata weight wipe ("Yank"), and the game feel depends on it
+   (floor rising on yanks, capacity reopening). Strengthens the
+   withdrawable lean; still to be confirmed with Abram.
+7. **Copy that survived playtesting:** "Back" / "Yank" (not Yolo), the
+   range framing above, "goal N ETH" as the bar's full width until the goal
+   is met (then rescale to max with a "goal met ✓" tick) — a bar
+   denominated by max reads as perpetually underfunded.
+8. **Spec defect found and fixed:** fixed-at-announce mcap (DD-6 rev 1)
+   made the deal fill-dependent and members anti-growth → replaced by
+   raise-scaled mcap at finalize (DD-6 rev 2).
+9. **Still unproven (all social, none mechanical):** the launcher create
+   flow, the share/invite loop (likely a Farcaster frame — the join card is
+   already frame-shaped), and launched-state retention (the 90-day claim
+   screen had one design pass).
 
 ### Model B open questions
 
