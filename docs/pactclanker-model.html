@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PartyClanker — What a Backer Gets</title>
+</head>
+<body>
+<style>
+:root{
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#199e70; --s3:#c98500;
+  }
+}
+:root[data-theme="dark"]{
+  --surface-1:#1a1a19; --page:#0d0d0d;
+  --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+  --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#199e70; --s3:#c98500;
+}
+:root[data-theme="light"]{
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100;
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--ink-1)}
+.viz-root{background:var(--page);min-height:100vh;padding:20px}
+.wrap{max-width:1060px;margin:0 auto}
+h1{font-size:20px;font-weight:650}
+.sub{color:var(--ink-2);font-size:13.5px;margin:6px 0 16px;max-width:840px;line-height:1.5}
+.layout{display:grid;grid-template-columns:290px 1fr;gap:16px;align-items:start}
+@media(max-width:840px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface-1);border:1px solid var(--ring);border-radius:10px;padding:16px}
+.panel h2{font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin:16px 0 6px}
+.panel h2:first-child{margin-top:0}
+.ctl{margin:10px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-2);margin-bottom:4px;gap:8px}
+.ctl label b{color:var(--ink-1);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+input[type=range]{width:100%;accent-color:var(--s1);height:20px}
+.derived{font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.45}
+.hero{display:flex;gap:26px;align-items:baseline;flex-wrap:wrap}
+.hero .big{font-size:42px;font-weight:650;line-height:1.05;font-variant-numeric:tabular-nums}
+.hero .big small,.hero .mid small{font-size:13px;font-weight:500;color:var(--ink-3);display:block;margin-bottom:2px}
+.hero .mid{font-size:25px;font-weight:650;font-variant-numeric:tabular-nums}
+.heroNote{font-size:12.5px;color:var(--ink-2);margin-top:6px;max-width:680px;line-height:1.45}
+.refund{border:1px solid var(--crit);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:13px;line-height:1.45;display:none}
+.refund b{color:var(--crit)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:16px 0 6px}
+.tile{background:var(--surface-1);border:1px solid var(--ring);border-radius:8px;padding:10px 12px}
+.tile .l{font-size:12px;color:var(--ink-3)}
+.tile .v{font-size:19px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .d{font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.4}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:6px;margin:6px 0 14px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:7px 10px;border-radius:7px;background:var(--surface-1);border:1px solid var(--ring)}
+.check .ic{font-weight:700;line-height:1.35}
+.check.ok .ic{color:var(--good)} .check.warn .ic{color:var(--serious)} .check.bad .ic{color:var(--crit)}
+.check .t b{display:block;font-weight:600}
+.check .t span{color:var(--ink-2);font-size:12px;line-height:1.4}
+.chart{margin:18px 0 6px}
+.chart h3{font-size:14px;font-weight:650;margin-bottom:2px}
+.chart .cap{font-size:12.5px;color:var(--ink-3);margin-bottom:8px;line-height:1.45;max-width:740px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--ink-2);margin:6px 0;flex-wrap:wrap}
+.legend .k{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+svg text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--ring);box-shadow:0 4px 14px rgba(0,0,0,.12);border-radius:7px;padding:7px 10px;font-size:12px;display:none;z-index:9;min-width:150px;line-height:1.5}
+table.sched{border-collapse:collapse;font-size:12.5px;margin-top:8px;font-variant-numeric:tabular-nums}
+table.sched th{text-align:left;font-weight:600;color:var(--ink-3);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;padding:4px 14px 4px 0}
+table.sched td{padding:4px 14px 4px 0;border-top:1px solid var(--grid);color:var(--ink-2)}
+table.sched td:first-child{color:var(--ink-1);font-weight:600}
+.schedWrap{overflow-x:auto}
+.foot{font-size:11.5px;color:var(--ink-3);margin-top:16px;line-height:1.5}
+</style>
+<div class="viz-root"><div class="wrap">
+<h1>PartyClanker — What a Backer Gets</h1>
+<div class="sub"><b>Your side of the launch.</b> The crowd pools ETH, all-or-nothing, and launches a vanilla Clanker coin — the pool funds the dev buy, a vault streams bonus coins, trading fees flow to the crowd's units forever, and nobody is paid. Your allocation is <b>time-weighted</b>: weight = ETH &times; time remaining when you commit. House rules are fixed for every party (PRD DD-3..6); only your commit, the crowd, and the party size vary.</div>
+<div class="layout">
+
+<div class="panel">
+  <h2>Your commit</h2>
+  <div class="ctl"><label>You put in <b id="vMe"></b></label><input type="range" id="me" min="0.005" max="5" step="0.005" value="0.25"></div>
+  <div class="ctl"><label>When you commit <b id="vT"></b></label><input type="range" id="t" min="0" max="100" step="1" value="10"></div>
+  <div class="derived" id="vTd"></div>
+
+  <h2>The raise</h2>
+  <div class="ctl"><label>Max raise (party size) <b id="vX"></b></label><input type="range" id="max" min="0.5" max="20" step="0.5" value="5"></div>
+  <div class="derived">The one launcher choice. Caps party size only — the deal no longer depends on it.</div>
+  <div class="ctl"><label>Everyone else pools <b id="vO"></b></label><input type="range" id="o" min="0" max="50" step="0.1" value="3"></div>
+  <div class="ctl"><label>Crowd's average commit point <b id="vC"></b></label><input type="range" id="c" min="0" max="95" step="5" value="50"></div>
+  <div class="derived">50% &asymp; deposits arriving evenly through the window. Earlier crowd = more weight competition for you.</div>
+
+  <h2>House rules (fixed)</h2>
+  <div class="derived" style="line-height:1.7">
+    List mcap: <b class="t-hr" id="hrMcap"></b> — always 5&times; what the party raises (DD-6 rev 2)<br>
+    Vault bonus: <b class="t-hr">1:1</b> per coin bought (DD-6)<br>
+    Streams: bought <b class="t-hr">7d</b>, bonus <b class="t-hr">90d</b><br>
+    Fees to units: <b class="t-hr">100%</b> of the creator side<br>
+    Window: <b class="t-hr">4 days</b> · dust bar: <b class="t-hr">0.1%</b>
+  </div>
+
+  <h2>Frame</h2>
+  <div class="ctl"><label>Volume guess <b id="vVg"></b></label><input type="range" id="vg" min="0" max="100000" step="1000" value="10000"></div>
+  <div class="ctl"><label>ETH price <b id="vEp"></b></label><input type="range" id="ep" min="1000" max="10000" step="100" value="4000"></div>
+</div>
+
+<div>
+  <div class="panel">
+    <div class="hero">
+      <div class="big"><small>Your share of total supply</small><span id="hSh"></span></div>
+      <div class="mid"><small>Your units</small><span id="hUn"></span></div>
+      <div class="mid"><small>Your coins, fully streamed</small><span id="hCo"></span></div>
+    </div>
+    <div class="heroNote" id="hNote"></div>
+    <div class="refund" id="refund"><b>&#10007; Below the dust bar.</b> <span id="refundD"></span></div>
+
+    <div class="tiles">
+      <div class="tile"><div class="l">Your weight vs a crowd-average ETH</div><div class="v" id="tWa"></div><div class="d" id="tWaD"></div></div>
+      <div class="tile"><div class="l">Your entry price vs list</div><div class="v" id="tEn"></div><div class="d" id="tEnD"></div></div>
+      <div class="tile"><div class="l">Vs buying at TGE instead</div><div class="v" id="tVs"></div><div class="d" id="tVsD"></div></div>
+      <div class="tile"><div class="l">Your position at post-launch mark</div><div class="v" id="tMk"></div><div class="d" id="tMkD"></div></div>
+      <div class="tile"><div class="l">Your fee income</div><div class="v" id="tFe"></div><div class="d" id="tFeD"></div></div>
+    </div>
+    <div class="checks" id="checks"></div>
+
+    <div class="chart">
+      <h3>When your coins arrive</h3>
+      <div class="cap">Both legs stream linearly from launch: the coins your ETH bought over <span id="capD1"></span>, the vault bonus over <span id="capD2"></span>. Hover for any day.</div>
+      <div id="stream"></div>
+      <div class="legend" id="legStream"></div>
+      <div class="schedWrap"><table class="sched" id="sched"></table></div>
+    </div>
+
+    <div class="chart">
+      <h3>Where the supply ends up</h3>
+      <div id="barSupply"></div>
+      <div class="legend" id="legSupply"></div>
+    </div>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+</div>
+</div></div>
+<div class="tip" id="tip"></div>
+<script>
+const $=id=>document.getElementById(id);
+const S=1e9;
+const fmtEth=v=>{if(v>=100)return v.toFixed(0)+' ETH';if(v>=1)return v.toFixed(2)+' ETH';return v.toFixed(3)+' ETH'};
+const fmt$=v=>{const a=Math.abs(v);if(a>=1e6)return '$'+(v/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(a>=1e3)return '$'+(v/1e3).toFixed(1).replace(/\.0$/,'')+'K';if(a>=100)return '$'+v.toFixed(0);return '$'+v.toFixed(2)};
+const fmtCo=v=>{if(v>=1e6)return (v/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'K';return v.toFixed(0)};
+const pct=v=>{const p=v*100;return (p<10&&p%1?p.toFixed(p<1?2:1):p.toFixed(0))+'%'};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function model(){
+  const me=+$('me').value, tPct=+$('t').value/100, W=4;
+  const X=+$('max').value, cPct=+$('c').value/100;
+  // House rules (PRD DD-3..6): 1:1 vault, 7d/90d streams, 100% fee cut.
+  const mult=1, d1=7, d2=90;
+  const u=1, vg=+$('vg').value, ep=+$('ep').value;
+  let others=+$('o').value;
+  // cap: total deposits cannot exceed the max raise
+  const capped=me+others>X;
+  if(capped)others=Math.max(0,X-me);
+  const D=me+others;
+  // mcap = 5x the ACTUAL raise, no floor (DD-6 rev 2). Derived from D, so party
+  // size cancels out — the deal is size-invariant at every scale, however small.
+  const mc=5*D;
+  // time weights (ETH x fraction-of-window remaining)
+  const wMe=me*(1-tPct), wO=others*(1-cPct), wTot=wMe+wO;
+  const shareExact=wTot>0?wMe/wTot:0;
+  const units=Math.floor(shareExact*1000);
+  const dust=units<1;
+  const f=dust?0:units/1000;             // claim after quantization (floor; real rule = DD-4)
+  const quantLoss=shareExact-units/1000;
+  // dev buy walks the curve; vault carved from supply reduces pool-side depth
+  const p0=mc/S;
+  let v=0,bought=0;
+  for(let i=0;i<25;i++){const x0=S-v,y0=x0*p0;bought=x0*D/(y0+D);v=mult*bought}
+  let clamped=false;
+  if(bought+v>0.9*S){const k=0.9*S/(bought+v);bought*=k;v*=k;clamped=true}
+  const x0=S-v,y0=x0*p0;
+  const prem=1+D/y0, endMult=prem*prem;
+  const myBought=f*bought, myVault=f*v, myCoins=myBought+myVault;
+  const myEntry=myCoins>0?(me/myCoins)/p0:Infinity;          // your cost per coin vs list
+  const blended=prem/(1+mult);                                // crowd average, for contrast
+  const vsTge=myEntry/endMult;                                // your price vs the first post-launch buyer
+  const markEth=myCoins*p0*endMult;                           // your coins at the post-buy price
+  const wAdv=(1-cPct)>0?(1-tPct)/(1-cPct):Infinity;
+  const feeDayUsd=vg*0.01*0.8*u*f;
+  const paybackDays=feeDayUsd>0?me*ep/feeDayUsd:Infinity;
+  return {me,tPct,W,X,others,cPct,mc,mult,d1,d2,u,vg,ep,D,capped,wMe,wO,shareExact,units,dust,f,quantLoss,p0,bought,v,clamped,prem,endMult,myBought,myVault,myCoins,myEntry,blended,vsTge,markEth,wAdv,feeDayUsd,paybackDays};
+}
+
+function check(state,title,detail){const c={ok:'&#10003;',warn:'&#9650;',bad:'&#10007;'}[state];return `<div class="check ${state}"><span class="ic">${c}</span><span class="t"><b>${title}</b><span>${detail}</span></span></div>`}
+
+function stackedBar(el,segs,total){
+  const Wd=el.clientWidth||700,H=46,gap=2;let x=0,r='';
+  segs.filter(s=>s.v>0.0005*total).forEach((s,i,arr)=>{
+    const w=Math.max(0,s.v/total*Wd-(i<arr.length-1?gap:0));
+    r+=`<g class="seg" data-tip="${s.name}: ${s.lbl}"><rect x="${x}" y="6" width="${w}" height="${H-12}" rx="4" fill="${s.c}"></rect>`;
+    if(w>120)r+=`<text x="${x+w/2}" y="${H/2+4}" text-anchor="middle" font-size="12" font-weight="600" fill="${s.dark?'#fff':'#0b0b0b'}">${s.lbl}</text>`;
+    r+='</g>';x+=w+gap});
+  el.innerHTML=`<svg width="100%" viewBox="0 0 ${Wd} ${H}" style="display:block">${r}</svg>`;
+  hookTips(el);
+}
+function hookTips(el){
+  const tip=$('tip');
+  el.querySelectorAll('.seg').forEach(s=>{
+    s.onmousemove=e=>{tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-10)+'px';tip.textContent=s.dataset.tip};
+    s.onmouseleave=()=>tip.style.display='none'});
+}
+
+function streamChart(el,m){
+  const Wd=el.clientWidth||700,H=190,padL=46,padR=14,padT=12,padB=24;
+  const maxD=Math.max(m.d1,m.d2), total=m.myCoins;
+  if(total<=0){el.innerHTML='<div class="cap" style="padding:20px 0">Nothing to stream — adjust your commit.</div>';return}
+  const iw=Wd-padL-padR, ih=H-padT-padB;
+  const xs=d=>padL+d/maxD*iw, ys=v=>padT+ih-(v/total)*ih;
+  const at=d=>({b:m.myBought*Math.min(d/m.d1,1),v:m.myVault*Math.min(d/m.d2,1)});
+  const N=120;let pB='',pT='';
+  for(let i=0;i<=N;i++){const d=i/N*maxD,a=at(d);pB+=(i?'L':'M')+xs(d).toFixed(1)+','+ys(a.b).toFixed(1)+' ';pT+=(i?'L':'M')+xs(d).toFixed(1)+','+ys(a.b+a.v).toFixed(1)+' '}
+  const base=`L${xs(maxD)},${ys(0)} L${xs(0)},${ys(0)} Z`;
+  let grid='';
+  for(let g=1;g<=3;g++){const y=padT+ih*g/4;grid+=`<line x1="${padL}" y1="${y}" x2="${Wd-padR}" y2="${y}" stroke="${css('--grid')}" stroke-width="1"/>`}
+  let ticks='';
+  [0,m.d1,m.d2].filter((d,i,a)=>a.indexOf(d)===i&&d<=maxD).forEach(d=>{ticks+=`<text x="${xs(d)}" y="${H-6}" text-anchor="middle" font-size="11" fill="${css('--ink-3')}">${d}d</text>`});
+  const s1=css('--s1'),s3=css('--s3');
+  const yl=[0,.5,1].map(fr=>`<text x="${padL-6}" y="${ys(fr*total)+4}" text-anchor="end" font-size="11" fill="${css('--ink-3')}">${fmtCo(fr*total)}</text>`).join('');
+  el.innerHTML=`<svg width="100%" viewBox="0 0 ${Wd} ${H}" style="display:block" id="streamSvg">
+    ${grid}
+    <path d="${pT} ${base}" fill="${s3}" opacity="0.85"></path>
+    <path d="${pB} ${base}" fill="${s1}" opacity="0.95"></path>
+    <path d="${pT}" fill="none" stroke="${s3}" stroke-width="2"></path>
+    <path d="${pB}" fill="none" stroke="${s1}" stroke-width="2"></path>
+    <line x1="${padL}" y1="${ys(0)}" x2="${Wd-padR}" y2="${ys(0)}" stroke="${css('--axis')}" stroke-width="1"/>
+    ${ticks}${yl}
+    <text x="${xs(Math.min(m.d1,maxD))+4}" y="${ys(m.myBought)-6}" font-size="11.5" font-weight="600" fill="${css('--ink-1')}">bought fully unlocked</text>
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${ys(0)}" stroke="${css('--axis')}" stroke-width="1"/>
+    <line id="xh" x1="0" y1="${padT}" x2="0" y2="${ys(0)}" stroke="${css('--ink-3')}" stroke-width="1" stroke-dasharray="3,3" style="display:none"/>
+    <rect x="${padL}" y="${padT}" width="${iw}" height="${ih}" fill="transparent" id="hov"/>
+  </svg>`;
+  const svg=$('streamSvg'),hov=$('hov'),xh=$('xh'),tip=$('tip');
+  hov.onmousemove=e=>{
+    const r=svg.getBoundingClientRect(),sc=Wd/r.width;
+    const d=Math.max(0,Math.min(maxD,((e.clientX-r.left)*sc-padL)/iw*maxD));
+    const a=at(d);
+    xh.style.display='block';xh.setAttribute('x1',xs(d));xh.setAttribute('x2',xs(d));
+    tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-10)+'px';
+    tip.innerHTML=`<b>Day ${d.toFixed(1)}</b><br>Bought: ${fmtCo(a.b)} coins<br>Bonus: ${fmtCo(a.v)} coins<br>Total: ${fmtCo(a.b+a.v)} (${pct((a.b+a.v)/total)} of yours)`;
+  };
+  hov.onmouseleave=()=>{xh.style.display='none';tip.style.display='none'};
+}
+
+function render(){
+  const m=model();
+  $('vMe').textContent=fmtEth(m.me)+' ('+fmt$(m.me*m.ep)+')';
+  $('vT').textContent='day '+(m.tPct*m.W).toFixed(1)+' of '+m.W;
+  $('vTd').textContent='Weight = ETH x time remaining. Committing at day '+(m.tPct*m.W).toFixed(1)+' keeps '+pct(1-m.tPct)+' of full weight.';
+  $('vX').textContent=fmtEth(m.X);
+  $('vO').textContent=fmtEth(m.others)+(m.capped?' (capped)':'');
+  $('vC').textContent=pct(+$('c').value/100)+' of window';
+  $('hrMcap').textContent=m.mc.toFixed(1)+' ETH ('+fmt$(m.mc*m.ep)+')';
+  $('vVg').textContent=fmt$(m.vg)+'/day';
+  $('vEp').textContent=fmt$(m.ep);
+  $('capD1').textContent=m.d1+' days';$('capD2').textContent=m.d2+' days';
+
+  $('hSh').textContent=m.dust?'—':pct(m.f*(m.bought+m.v)/S);
+  $('hUn').textContent=m.dust?'0 / 1000':m.units+' / 1000';
+  $('hCo').textContent=m.dust?'—':fmtCo(m.myCoins);
+  $('refund').style.display=m.dust?'block':'none';
+  if(m.dust)$('refundD').textContent='Your time-weighted share ('+pct(m.shareExact)+') rounds below 1 unit (0.1%), so at close your '+fmtEth(m.me)+' would be refunded in full and you would not be in the launch. Commit more, or earlier, or against a smaller crowd.';
+  $('hNote').innerHTML=m.dust?'The pool launches without you — everything below shows zero for your position.':'Your '+fmtEth(m.me)+' is '+pct(m.me/m.D)+' of the pool, but your <b>time-weighted</b> share is '+pct(m.shareExact)+' → <b>'+m.units+' units</b> (rounding '+(m.quantLoss>=0?'costs':'gives')+' you '+ (Math.abs(m.quantLoss)*100).toFixed(2)+'pp, floor rule — DD-4). Units claim '+pct(m.f)+' of the crowd’s coins and fees.';
+
+  $('tWa').textContent=isFinite(m.wAdv)?m.wAdv.toFixed(2)+'x':'∞';
+  $('tWaD').textContent='committing at '+pct(m.tPct)+' of the window vs the crowd’s average '+pct(m.cPct);
+  $('tEn').textContent=m.dust?'—':m.myEntry.toFixed(2)+'x list';
+  $('tEnD').textContent='crowd average is '+m.blended.toFixed(2)+'x — time-weighting moves yours '+(m.myEntry<=m.blended?'below':'above')+' it';
+  $('tVs').textContent=m.dust?'—':Math.round(m.vsTge*100)+'%';
+  $('tVsD').textContent='what you pay per coin vs the price the moment after launch ('+m.endMult.toFixed(2)+'x list)';
+  $('tMk').textContent=m.dust?'—':fmtEth(m.markEth)+' ('+fmt$(m.markEth*m.ep)+')';
+  $('tMkD').textContent='your '+fmtEth(m.me)+' marked at the post-buy price — before any outside trading';
+  $('tFe').textContent=m.dust?'—':fmt$(m.feeDayUsd)+'/day';
+  $('tFeD').textContent=m.dust?'':'at your volume guess; fees alone repay your check in '+(isFinite(m.paybackDays)?(m.paybackDays>3650?'10+ years':m.paybackDays>=365?(m.paybackDays/365).toFixed(1)+' years':Math.round(m.paybackDays)+' days'):'—');
+
+  const cks=[];
+  cks.push(m.dust?check('bad','You’d be refunded (dust rule)','share rounds below 1 unit — the launch happens without you'):check('ok','You clear the dust bar',''+m.units+' units — '+pct(m.f)+' of every stream and every fee'));
+  if(!m.dust)cks.push(m.myEntry<=1?check('ok','Entry below list price','your blended cost is '+m.myEntry.toFixed(2)+'x list — the vault bonus more than covers the buy’s price impact for you'):m.myEntry<=1.3?check('warn','Entry '+m.myEntry.toFixed(2)+'x list','above list — commit earlier'):check('bad','Entry '+m.myEntry.toFixed(2)+'x list','you’re overpaying vs list even with the bonus'));
+  cks.push(m.wAdv>=1?check('ok','Earlier than the crowd average','your ETH carries '+m.wAdv.toFixed(2)+'x the weight of a crowd-average ETH'):check('warn','Later than the crowd average','your ETH carries only '+m.wAdv.toFixed(2)+'x a crowd-average ETH — every day you wait costs weight'));
+  cks.push(m.prem<=1.5?check('ok','Pool buy fills at '+m.prem.toFixed(2)+'x list','well-sized raise for this list price'):m.prem<=2.5?check('warn','Pool buy fills at '+m.prem.toFixed(2)+'x list','outside buyers start above '+m.endMult.toFixed(1)+'x list'):check('bad','Pool buy fills at '+m.prem.toFixed(2)+'x list','the pool mostly pays itself \u2014 should not happen inside the house rules'));
+  cks.push((m.bought+m.v)/S<=0.5?check('ok','Crowd holds '+pct((m.bought+m.v)/S)+' of supply','real float left for the market'):(m.bought+m.v)/S<=0.7?check('warn','Crowd holds '+pct((m.bought+m.v)/S),'thin outside float'):check('bad','Crowd holds '+pct((m.bought+m.v)/S),'almost nothing left for anyone else'));
+  cks.push(m.d2>=3*m.d1?check('ok','Bonus streams '+(m.d2/m.d1).toFixed(1)+'x slower','lowest-cost-basis coins arrive slowest — anti-dump by schedule'):check('warn','Bonus streams only '+(m.d2/m.d1).toFixed(1)+'x slower','house rules keep this fixed'));
+  if(m.capped)cks.push(check('warn','Max raise reached','the pool is full at '+fmtEth(m.X)+' — capacity only reopens if someone withdraws'));
+  if(m.clamped)cks.push(check('bad','Vault clamped','bought + bonus exceeded 90% of supply — lower the multiple or the raise'));
+  $('checks').innerHTML=cks.join('');
+
+  streamChart($('stream'),m);
+  $('legStream').innerHTML=`<span class="k"><span class="sw" style="background:${css('--s1')}"></span>Coins your ETH bought (${fmtCo(m.myBought)})</span><span class="k"><span class="sw" style="background:${css('--s3')}"></span>Vault bonus (${fmtCo(m.myVault)})</span>`;
+
+  const rows=[[0,'launch'],[1,''],[m.d1,'bought fully unlocked'],[m.d2,'everything unlocked']].filter((r,i,a)=>a.findIndex(q=>q[0]===r[0])===i).sort((a,b)=>a[0]-b[0]);
+  $('sched').innerHTML='<tr><th>Day</th><th>Bought</th><th>Bonus</th><th>Total yours</th><th></th></tr>'+rows.map(([d,note])=>{
+    const b=m.myBought*Math.min(d/m.d1,1),vv=m.myVault*Math.min(d/m.d2,1);
+    return `<tr><td>${d}</td><td>${fmtCo(b)}</td><td>${fmtCo(vv)}</td><td>${fmtCo(b+vv)}</td><td>${note}</td></tr>`}).join('');
+
+  const segs=[
+    {name:'You',v:m.myCoins,c:css('--s1'),lbl:pct(m.myCoins/S)+' you',dark:true},
+    {name:'Rest of the crowd',v:m.bought+m.v-m.myCoins,c:css('--s3'),lbl:pct((m.bought+m.v-m.myCoins)/S)+' rest of crowd'},
+    {name:'Stays in the market',v:S-m.bought-m.v,c:css('--s2'),lbl:pct((S-m.bought-m.v)/S)+' market'}
+  ];
+  stackedBar($('barSupply'),segs,S);
+  $('legSupply').innerHTML=segs.map(s=>`<span class="k"><span class="sw" style="background:${s.c}"></span>${s.name}</span>`).join('');
+
+  $('foot').innerHTML='Mechanics: dev buy approximated as constant-product against pool-side supply at list price; vault carved from supply (fixed-point). Time weight = amount x fraction of window remaining at commit; crowd weight uses the average-commit slider. Units floor to 0.1% (dust rule and remainder policy are DD-4, open). Fees: 1% per trade, 80% creator side, units’ cut set at launch; your cut = units/1000. ETH-denominated per DD-5; USD figures use the ETH-price slider. Arithmetic, not a prediction.';
+}
+document.querySelectorAll('input').forEach(i=>i.addEventListener('input',render));
+window.addEventListener('resize',render);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+new MutationObserver(render).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+render();
+</script>
+
+</body>
+</html>

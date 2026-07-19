@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PartyClanker — Crowd-Launched Vanilla Clanker</title>
+<style>
+.viz-root{
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100; --s4:#008300;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+}
+@media (prefers-color-scheme: dark){
+  .viz-root{
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#199e70; --s3:#c98500; --s4:#008300;
+  }
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--ink-1)}
+.viz-root{background:var(--page);min-height:100vh;padding:20px}
+.wrap{max-width:1060px;margin:0 auto}
+h1{font-size:20px;font-weight:650}
+.sub{color:var(--ink-2);font-size:13.5px;margin:6px 0 16px;max-width:840px;line-height:1.5}
+.layout{display:grid;grid-template-columns:290px 1fr;gap:16px;align-items:start}
+@media(max-width:840px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface-1);border:1px solid var(--ring);border-radius:10px;padding:16px}
+.panel h2{font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin:16px 0 6px}
+.panel h2:first-child{margin-top:0}
+.ctl{margin:10px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-2);margin-bottom:4px;gap:8px}
+.ctl label b{color:var(--ink-1);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+input[type=range]{width:100%;accent-color:var(--s1);height:20px}
+.derived{font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.45}
+.hero{display:flex;gap:26px;align-items:baseline;flex-wrap:wrap}
+.hero .big{font-size:42px;font-weight:650;line-height:1.05}
+.hero .big small,.hero .mid small{font-size:13px;font-weight:500;color:var(--ink-3);display:block;margin-bottom:2px}
+.hero .mid{font-size:25px;font-weight:650}
+.heroNote{font-size:12.5px;color:var(--ink-2);margin-top:6px;max-width:680px;line-height:1.45}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:16px 0 6px}
+.tile{background:var(--surface-1);border:1px solid var(--ring);border-radius:8px;padding:10px 12px}
+.tile .l{font-size:12px;color:var(--ink-3)}
+.tile .v{font-size:19px;font-weight:650;margin-top:2px}
+.tile .d{font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.4}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:6px;margin:6px 0 14px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:7px 10px;border-radius:7px;background:var(--surface-1);border:1px solid var(--ring)}
+.check .ic{font-weight:700;line-height:1.35}
+.check.ok .ic{color:var(--good)} .check.warn .ic{color:var(--serious)} .check.bad .ic{color:var(--crit)}
+.check .t b{display:block;font-weight:600}
+.check .t span{color:var(--ink-2);font-size:12px;line-height:1.4}
+.chart{margin:18px 0 6px}
+.chart h3{font-size:14px;font-weight:650;margin-bottom:2px}
+.chart .cap{font-size:12.5px;color:var(--ink-3);margin-bottom:8px;line-height:1.45;max-width:740px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--ink-2);margin:6px 0;flex-wrap:wrap}
+.legend .k{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+svg text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--ring);box-shadow:0 4px 14px rgba(0,0,0,.12);border-radius:7px;padding:7px 10px;font-size:12px;display:none;z-index:9;min-width:150px}
+.foot{font-size:11.5px;color:var(--ink-3);margin-top:16px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap">
+<h1>PartyClanker — Crowd-Launched Vanilla Clanker</h1>
+<div class="sub"><b>What this models:</b> a crowd pools USDC, all-or-nothing, and launches a completely standard Clanker coin. <b>100% of the pool buys coins in the launch transaction itself</b> (the "dev buy" — filled before any outside buyer can act). On top, a <b>vault bonus</b> reserves extra coins for the crowd: for every coin the pool bought, the vault streams more, over a longer window. <b>Nobody is paid</b> — no founder, no team; the organizer holds units like everyone else. The crowd's return: the coins (streamed), the bonus (streamed slower), and a cut of every trading fee, forever.</div>
+<div class="layout">
+
+<div class="panel">
+  <h2>The crowd</h2>
+  <div class="ctl"><label>Money pooled <b id="vP"></b></label><input type="range" id="pool" min="250" max="25000" step="250" value="2500"></div>
+  <div class="ctl"><label>People in the crowd <b id="vN"></b></label><input type="range" id="n" min="5" max="200" step="5" value="30"></div>
+  <div class="derived" id="vPer"></div>
+  <div class="derived" style="margin-top:6px">All of it buys coins at launch. No founder slice, no LP slice — the buy itself puts the money into the trading pool.</div>
+
+  <h2>The coin</h2>
+  <div class="ctl"><label>List price at launch (mcap) <b id="vM"></b></label><input type="range" id="mc" min="5000" max="250000" step="5000" value="30000"></div>
+  <div class="derived">The market cap the coin goes live at. Clanker's preset is ~$30K (10 ETH); going below that needs a custom pool config. Bigger list price = the pool's buy moves the price less.</div>
+
+  <h2>The early-backer bonus</h2>
+  <div class="ctl"><label>Vault multiple <b id="vX"></b></label><input type="range" id="mult" min="0" max="3" step="0.25" value="1"></div>
+  <div class="derived">Bonus coins streamed per coin the pool bought. 1.0x = two coins for the price of one — the reward for committing before launch.</div>
+  <div class="ctl"><label>Bought coins stream over <b id="vD1"></b></label><input type="range" id="d1" min="1" max="30" step="1" value="7"></div>
+  <div class="ctl"><label>Bonus coins stream over <b id="vD2"></b></label><input type="range" id="d2" min="7" max="180" step="1" value="30"></div>
+
+  <h2>Fees</h2>
+  <div class="ctl"><label>Crowd's cut of trading fees <b id="vU"></b></label><input type="range" id="u" min="0" max="100" step="5" value="100"></div>
+  <div class="derived">Every trade pays a 1% fee; Clanker keeps a fifth. With no founder, the crowd's units take the rest (any remainder here = platform share). Set permanently at launch.</div>
+</div>
+
+<div>
+  <div class="panel">
+    <div class="hero">
+      <div class="big"><small>Coins per dollar vs waiting for launch</small><span id="hMult"></span></div>
+      <div class="mid"><small>Crowd's blended price vs list</small><span id="hBl"></span></div>
+      <div class="mid"><small>Holders on day one</small><span id="hN"></span></div>
+    </div>
+    <div class="heroNote" id="hNote"></div>
+    <div class="tiles">
+      <div class="tile"><div class="l">Each backer's check becomes</div><div class="v" id="tPer"></div><div class="d" id="tPerD"></div></div>
+      <div class="tile"><div class="l">The buy fills at</div><div class="v" id="tFill"></div><div class="d" id="tFillD"></div></div>
+      <div class="tile"><div class="l">Vs a launch-day buyer</div><div class="v" id="tVs"></div><div class="d" id="tVsD"></div></div>
+      <div class="tile"><div class="l">Crowd's supply share</div><div class="v" id="tSh"></div><div class="d" id="tShD"></div></div>
+      <div class="tile"><div class="l">Mark-to-market cushion</div><div class="v" id="tCu"></div><div class="d" id="tCuD"></div></div>
+    </div>
+    <div class="checks" id="checks"></div>
+
+    <div class="chart">
+      <h3>Who ends up with the supply</h3>
+      <div id="barSupply"></div>
+      <div class="legend" id="legSupply"></div>
+    </div>
+
+    <div class="chart">
+      <h3>Money coming back: coins + fees</h3>
+      <div class="cap">Coins are a bet; fees are arithmetic. Guess an average daily trading volume and see what the crowd's fee cut does.</div>
+      <div class="ctl" style="max-width:420px"><label>Your guess: average daily trading volume <b id="vVg"></b></label><input type="range" id="vg" min="0" max="25000" step="250" value="2000"></div>
+      <div class="tiles">
+        <div class="tile"><div class="l">Crowd's fee income</div><div class="v" id="tFd"></div><div class="d" id="tFdD"></div></div>
+        <div class="tile"><div class="l">Fees repay the whole pool in</div><div class="v" id="tFr"></div><div class="d" id="tFrD"></div></div>
+        <div class="tile"><div class="l">Trading needed for full payback</div><div class="v" id="tBv"></div><div class="d" id="tBvD"></div></div>
+      </div>
+      <div class="cap" style="margin-top:4px">Reality check: 86% of launches never see a single trade; only ~7% of funded launches ever repaid their seed via fees. Fee income is real only for coins a community keeps trading — which is why the crowd being the launcher is the whole idea.</div>
+    </div>
+  </div>
+  <div class="foot">Mechanics: the buy walks the launch curve (constant-product approximation against the coin's pool-side supply at list price), so its average fill is above list — the vault bonus pulls the crowd's blended price back down; both are shown. "Vs a launch-day buyer" compares the crowd's blended price to the pool price the instant after the crowd's buy — the best case any outside buyer sees. Why 50+ people matters: in 1.27M Base launches, coins with 50+ real, distinct day-one holders survived at far higher rates than money could buy — coins and units must land in each backer's own wallet. Mark-to-market cushion assumes the post-buy price, which selling would move. Arithmetic, not a prediction.</div>
+</div>
+</div>
+</div></div>
+<div class="tip" id="tip"></div>
+<script>
+const $=id=>document.getElementById(id);
+const fmt$=v=>{const a=Math.abs(v);if(a>=1e6)return '$'+(v/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';if(a>=1e3)return '$'+(v/1e3).toFixed(1).replace(/\.0$/,'')+'K';return '$'+v.toFixed(0)};
+const pct=v=>(v*100).toFixed(v*100<10&&(v*100%1)?1:0)+'%';
+const css=n=>getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(n).trim();
+const S=1e9;
+
+function model(){
+  const pool=+$('pool').value,n=+$('n').value,mc=+$('mc').value;
+  const mult=+$('mult').value,d1=+$('d1').value,d2=+$('d2').value,u=+$('u').value/100,vg=+$('vg').value;
+  const D=pool, p0=mc/S;
+  // vault carved from supply reduces pool-side depth; iterate to fixed point
+  let v=0,bought=0;
+  for(let i=0;i<25;i++){
+    const x0=S-v, y0=x0*p0;
+    bought=x0*D/(y0+D);
+    v=mult*bought;
+  }
+  const capped=(bought+v)>0.9*S;
+  if(capped){const k=0.9*S/(bought+v);bought*=k;v*=k;}
+  const x0=S-v, y0=x0*p0;
+  const prem=1+D/y0;                       // avg fill vs list
+  const endMult=prem*prem;                 // pool price right after the buy, vs list
+  const postMc=mc*endMult;
+  const blended=prem/(1+mult);             // crowd's avg cost per coin vs list
+  const vsDayOne=1/((1+mult)*prem);        // crowd blended price / post-buy price
+  const marked=pool*(1+mult)*prem;         // crowd coins at post-buy price
+  const cushion=1-1/((1+mult)*prem);       // % the coin can fall (from post-buy) before pool underwater at mark
+  const feeRate=0.01*0.8*u;
+  const feeDay=vg*feeRate;
+  const repayDays=feeDay>0?pool/feeDay:Infinity;
+  const beVol=feeRate>0?pool/feeRate:Infinity;
+  return {pool,n,mc,mult,d1,d2,u,vg,D,p0,v,bought,capped,prem,endMult,postMc,blended,vsDayOne,marked,cushion,feeRate,feeDay,repayDays,beVol,per:pool/n};
+}
+function check(state,title,detail){const c={ok:'&#10003;',warn:'&#9650;',bad:'&#10007;'}[state];return `<div class="check ${state}"><span class="ic">${c}</span><span class="t"><b>${title}</b><span>${detail}</span></span></div>`}
+
+function stackedBar(el,segs,total){
+  const W=el.clientWidth||700,H=46,gap=2;let x=0,r='';
+  segs.filter(s=>s.v>0.001).forEach((s,i,arr)=>{
+    const w=Math.max(0,s.v/total*W-(i<arr.length-1?gap:0));
+    r+=`<g class="seg" data-tip="${s.name}: ${s.lbl}"><rect x="${x}" y="6" width="${w}" height="${H-12}" rx="4" fill="${s.c}"></rect>`;
+    if(w>110)r+=`<text x="${x+w/2}" y="${H/2+4}" text-anchor="middle" font-size="12" font-weight="600" fill="${s.dark?'#fff':'#0b0b0b'}">${s.lbl}</text>`;
+    r+='</g>';x+=w+gap;});
+  el.innerHTML=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block">${r}</svg>`;
+  const tip=$('tip');
+  el.querySelectorAll('.seg').forEach(s=>{s.onmousemove=e=>{tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-10)+'px';tip.textContent=s.dataset.tip};s.onmouseleave=()=>tip.style.display='none'});
+}
+
+function render(){
+  const m=model();
+  $('vP').textContent=fmt$(m.pool);$('vN').textContent=m.n;
+  $('vPer').textContent='Average check: '+fmt$(m.per)+' per person';
+  $('vM').textContent=fmt$(m.mc);
+  $('vX').textContent=m.mult.toFixed(2)+'x';
+  $('vD1').textContent=m.d1+' days';$('vD2').textContent=m.d2+' days';
+  $('vU').textContent=pct(m.u);$('vVg').textContent=fmt$(m.vg)+'/day';
+
+  $('hMult').textContent=((1+m.mult)/1).toFixed(2)+'x';
+  $('hBl').textContent=m.blended.toFixed(2)+'x list';
+  $('hN').textContent=m.n;
+  $('hNote').innerHTML='The pool\'s buy fills at <b>'+m.prem.toFixed(2)+'x list</b> (its own buy moves the price while filling) — but the '+m.mult.toFixed(2)+'x vault bonus pulls the crowd\'s blended price down to <b>'+m.blended.toFixed(2)+'x list</b>'+(m.blended<=1?' — below the list price. Committing early earned a structural discount.':'. Raise the vault multiple or the list price to push this below 1x.');
+
+  $('tPer').textContent=fmt$(m.per);
+  const perBought=m.bought/m.n, perBonus=m.v/m.n;
+  $('tPerD').textContent=fmt$(m.per)+' of coins at launch + a '+m.mult.toFixed(2)+'x bonus on top, both streamed ('+(perBought/1e6).toFixed(1)+'M + '+(perBonus/1e6).toFixed(1)+'M coins)';
+  $('tFill').textContent=m.prem.toFixed(2)+'x list';
+  $('tFillD').textContent='average price of the launch-moment buy; pool price right after: '+m.endMult.toFixed(2)+'x list';
+  $('tVs').textContent=Math.round(m.vsDayOne*100)+'%';
+  $('tVsD').textContent='the crowd pays '+Math.round(m.vsDayOne*100)+'% per coin of what a buyer pays the moment after launch';
+  $('tSh').textContent=pct((m.bought+m.v)/S);
+  $('tShD').textContent=pct(m.bought/S)+' bought (streams '+m.d1+'d) + '+pct(m.v/S)+' bonus (streams '+m.d2+'d)';
+  $('tCu').textContent='−'+Math.round(m.cushion*100)+'%';
+  $('tCuD').textContent='the coin can fall this far from its post-launch price before the crowd\'s coins mark below the pool';
+
+  const cks=[];
+  cks.push(m.n>=50?check('ok',m.n+' real holders on day one','coins launched by 50+ distinct people survive at far higher rates — the strongest effect in 1.27M launches. Coins and units land in each person\'s own wallet.'):m.n>=20?check('warn','Only '+m.n+' holders','below the 50-person mark the data rewards; grow the crowd before launching'):check('bad','Only '+m.n+' holders','too few people for the launch to register'));
+  cks.push(m.blended<=1.0?check('ok','Blended entry '+m.blended.toFixed(2)+'x list','early backers enter at a structural discount — the recruiting number'):m.blended<=1.3?check('warn','Blended entry '+m.blended.toFixed(2)+'x list','the vault bonus isn\'t fully covering the buy\'s own price impact — raise the multiple or the list price'):check('bad','Blended entry '+m.blended.toFixed(2)+'x list','the crowd is overpaying even after the bonus'));
+  cks.push(m.prem<=1.5?check('ok','Buy fills at '+m.prem.toFixed(2)+'x list','well-sized for the market'):m.prem<=2.5?check('warn','Buy fills at '+m.prem.toFixed(2)+'x list','the pool is large for this list price — outside buyers enter above '+m.endMult.toFixed(1)+'x list, a hard sell'):check('bad','Buy fills at '+m.prem.toFixed(2)+'x list','the pool mostly pays itself; raise the list price'));
+  cks.push((m.bought+m.v)/S<=0.5?check('ok','Crowd holds '+pct((m.bought+m.v)/S)+' of supply','leaves a real float for the market'):(m.bought+m.v)/S<=0.7?check('warn','Crowd holds '+pct((m.bought+m.v)/S),'thin outside float; the market is mostly the crowd trading with itself'):check('bad','Crowd holds '+pct((m.bought+m.v)/S),'almost no supply left for anyone else'));
+  cks.push(m.d2>=3*m.d1?check('ok','Bonus streams '+(m.d2/m.d1).toFixed(1)+'x slower than the buy','the free coins arrive slowest — anti-dump by schedule'):check('warn','Bonus streams only '+(m.d2/m.d1).toFixed(1)+'x slower','low-cost-basis coins arriving fast is the dump risk; lengthen the bonus stream'));
+  cks.push(check('ok','Nobody is paid','100% of the pool buys coins; the organizer holds units pro-rata like everyone else — no founder, no team, no promoter'));
+  cks.push(m.capped?check('bad','Vault clamped','bought + bonus exceeded 90% of supply — lower the multiple or pool size'):null);
+  $('checks').innerHTML=cks.filter(Boolean).join('');
+
+  const segs=[
+    {name:'Bought by the crowd',v:m.bought,c:css('--s1'),lbl:pct(m.bought/S)+' bought',dark:true},
+    {name:'Vault bonus to the crowd',v:m.v,c:css('--s3'),lbl:pct(m.v/S)+' bonus'},
+    {name:'Stays in the market',v:S-m.bought-m.v,c:css('--s2'),lbl:pct((S-m.bought-m.v)/S)+' market'}
+  ];
+  stackedBar($('barSupply'),segs,S);
+  $('legSupply').innerHTML=segs.map(s=>`<span class="k"><span class="sw" style="background:${s.c}"></span>${s.name}</span>`).join('');
+
+  $('tFd').textContent=fmt$(m.feeDay)+'/day';
+  $('tFdD').textContent=pct(m.u)+' of the 80% creator side on '+fmt$(m.vg)+' of daily trading';
+  $('tFr').textContent=!isFinite(m.repayDays)?'never':m.repayDays>3650?'10+ years':m.repayDays>=365?(m.repayDays/365).toFixed(1)+' years':Math.round(m.repayDays)+' days';
+  $('tFrD').textContent='at your volume guess, held constant';
+  $('tBv').textContent=isFinite(m.beVol)?fmt$(m.beVol):'—';
+  $('tBvD').textContent='total trading volume at which fees alone have repaid the pool';
+}
+document.querySelectorAll('input').forEach(i=>i.addEventListener('input',render));
+window.addEventListener('resize',render);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+render();
+</script>
+</body>
+</html>
