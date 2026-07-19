@@ -219,8 +219,7 @@ function MathBox({ party, econ, onModel }) {
         <li>Lists at <b>{econ.mcap.toFixed(0)} ETH</b> — always 5× what's raised; same deal at every size, however small</li>
         <li>Enters at <b>{econ.blended.toFixed(2)}x list</b> — <b>{Math.round(econ.vsTge * 100)}%</b> of a TGE buyer's price</li>
         <li><b>{fmtPct(econ.partyShare)}</b> of supply to the party, <b>{fmtPct(1 - econ.partyShare)}</b> to the market</li>
-        <li>Launcher keeps 1 admin unit (0.1%) — everything else is earned</li>
-        {party.yourWeight > 0 && <li>Floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 999)} units) — only goes up</li>}
+        {party.yourWeight > 0 && <li>Floor if it fills: <b>{fmtPct(party.floorShare)}</b> ({Math.floor(party.floorShare * 1000)} units) — only goes up</li>}
       </ul>
     </div>
   );
@@ -251,9 +250,7 @@ function FundingCard({ party, econ, amt, setAmt, onModel }) {
   // the ambient drift decays unfilled capacity's weight.
   const floorP = (party.floorShare * 100).toFixed(10);
   const floorCut = floorP.indexOf('.') + 3;
-  // Backers quantize against 999 (DD-7): unit #1 is the launcher's admin share,
-  // minted at close; the other 999 quantize across backers by weight.
-  const floorUnits = Math.floor(party.floorShare * 999);
+  const floorUnits = Math.floor(party.floorShare * 1000);
   const dusty = party.yourWeight > 0 && floorUnits < 1;
   const [confirming, setConfirming] = useState(false);
   const [burst, setBurst] = useState(0);
@@ -320,7 +317,7 @@ function LaunchedCard({ party }) {
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick(n => n + 1), 1000); return () => clearInterval(id); }, []);
   const econ = partyEcon(party.raised);
-  const units = Math.floor(party.yourShare * 999); // backer basis (DD-7): 999 quantized
+  const units = Math.floor(party.yourShare * 1000);
   const f = units / 1000;
   if (units < 1) {
     return <div className="card"><h2>Not in this one</h2><p className="note">The launch happened without you. Next party's a fresh start.</p></div>;
@@ -381,11 +378,11 @@ const Row = ({ r, dim, rank, bumped }) => (
     data-flip={r.name}
     data-rank={rank}
     className={`partier${dim ? ' dim' : ''}${r.you ? ' is-you enter' : ''}${r.you && r.preview ? ' preview-row' : ''}${dim && bumped ? ' just-bumped' : ''}`}
-    title={r.adminOnly ? 'backed position refunded — admin share stays' : dim ? 'Below the dust bar — refunded in full at close.' : undefined}
+    title={dim ? 'Below the dust bar — refunded in full at close.' : undefined}
   >
     <span className="ava">{dim ? '😭' : r.you ? '🫵' : '🥳'}</span>
     <span className="who">{r.name}{r.you && <> <span className="badge you">{r.preview ? 'preview' : 'you'}</span></>}{r.launcher && <> <span className="badge">launcher</span></>}</span>
-    <span className="pct">{dim ? '0%' : fmtPct(r.pct)}</span>
+    <span className="pct">{dim ? '0%' : fmtPct(r.proj)}</span>
   </div>
 );
 
@@ -401,20 +398,10 @@ function Partiers({ party }) {
     rows.push({ name: 'you', you: true, preview, weight: party.yourWeight });
   }
   const total = rows.reduce((s, r) => s + r.weight, 0);
-  // DD-7 units basis: backers quantize against 999; the launcher additionally
-  // holds unit #1 (the admin share) unconditionally, so its % is (units+1)/1000.
-  const withShare = rows.map(r => {
-    const proj = total > 0 ? r.weight / total : 0;
-    const backedUnits = Math.floor(proj * 999);
-    const units = r.launcher ? backedUnits + 1 : backedUnits;
-    // The launcher's backed position can be dusted like anyone's, but the admin
-    // share survives — the row never leaves the party, it just shows ~0.1%.
-    const adminOnly = r.launcher && proj < HOUSE.dustShare;
-    return { ...r, proj, units, pct: units / 1000, adminOnly };
-  }).sort((a, b) => b.proj - a.proj);
-  // Launcher never falls to the refunded section (admin share keeps it active).
-  const active = withShare.filter(r => r.launcher || r.proj >= HOUSE.dustShare);
-  const dust = withShare.filter(r => !r.launcher && r.proj < HOUSE.dustShare);
+  const withShare = rows.map(r => ({ ...r, proj: total > 0 ? r.weight / total : 0 }))
+    .sort((a, b) => b.proj - a.proj);
+  const active = withShare.filter(r => r.proj >= HOUSE.dustShare);
+  const dust = withShare.filter(r => r.proj < HOUSE.dustShare);
   // A row falling active → refunded gets a one-shot flash + 🥳→😭 beat: track
   // each row's previous section, stamp the fall, wear .just-bumped for ~0.8s.
   const prevSection = useRef(new Map());
