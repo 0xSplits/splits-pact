@@ -137,8 +137,9 @@ size/total, a clock scrubber). Throwaway styling, real mechanism math. See
                   │    │    beneficiary = Splits Vesting stream → LS
                   │    ├─ reward recipient = the Liquid Split, forever
                   │    └─ standard MEV module, standard locked LP
-                  ├─ mint Liquid Split (1000 units) allocated by
-                  │    time-weighted shares (quantized to 0.1%)
+                  ├─ mint Liquid Split: unit #1 → launcher (admin
+                  │    share, DD-7); 999 by time-weighted shares
+                  │    (quantized to 0.1%)
                   └─ arm streams: pre-bought coins over ~7d, vault
                        slower (≥3x), both terminating at the LS
 4. refund()     if min not met at close: deposits return, nothing launched
@@ -401,6 +402,32 @@ Two honesty notes recorded with the decision:
   size. The UI should show both, headline the relative number, and the
   join card needs the live readout either way: "at the current 8 ETH,
   this party enters at 1.6x list."
+
+#### DD-7: Launcher admin share + admin role split — DECIDED (2026-07-19)
+
+Two launcher provisions, both deliberately non-economic in spirit:
+
+1. **One admin share, locked in at mint.** Unit #1 of the 1000 goes to the
+   launcher unconditionally; the other 999 are quantized across backers by
+   weight (largest-remainder). If the launcher also backs, their backed
+   weight earns units from the 999 like anyone's — and can be dusted like
+   anyone's. Being bumped from your own party now means losing your backed
+   position, never your standing: the admin share (0.1%, ~0.1% of fees)
+   survives. It is a stock transferable LS1155 unit ("locked in" =
+   guaranteed at mint, not transfer-locked).
+2. **Non-fee Clanker admin roles → the launcher's wallet.** Token-admin
+   functions (metadata/image updates and similar) are assigned to the
+   launcher EOA at deploy. **Fee routing stays launched**: any role that
+   can change reward recipients remains with the immutable settlement
+   contract (or is renounced) — in Clanker v4, reward recipients carry
+   their own admin, so this split must be enforced field-by-field in the
+   deploy config (see contracts plan §6).
+
+Tension, acknowledged: DD-2 says zero founder economics and the build
+prompt resists "surely 2% for the organizer." The admin share is a fixed
+0.1% peppercorn, not a percentage carve-out — functional standing (never
+fully ejected; a wallet to hold token admin) more than compensation. The
+line to hold: it never scales.
 
 ### Complexity budget
 

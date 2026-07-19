@@ -110,6 +110,7 @@ address[] backerList;                  // append on first deposit; needed for LS
 uint128 totalBalance; uint128 totalAccrued; uint64 globalLastUpdate;
 uint64  immutable closeTime;           // announce + 4 days
 uint256 immutable maxRaise;            // also derives min, minDeposit
+address immutable launcher;            // DD-7: gets unit #1 + non-fee admin roles
 enum State { Funding, Launched, Failed }
 ```
 
@@ -144,10 +145,12 @@ complexity-budget section.
    the raise). Single pass is safe — removals only raise survivors'
    shares (proof in PRD DD-4). Re-check `raisedNet >= min`; if not, flip
    to Failed.
-3. **Quantize units**: floor each survivor's `share x 1000`; distribute the
+3. **Quantize units**: reserve unit #1 for the launcher (DD-7 admin
+   share — unconditional, survives even if the launcher's backed position
+   is dusted); floor each survivor's `share x 999`; distribute the
    remainder by largest-remainder method (deterministic, sums to exactly
-   1000). This resolves DD-4's open remainder policy — propose it to
-   Abram as the default.
+   999 + 1). Resolves DD-4's open remainder policy — propose to Abram as
+   the default.
 4. Compute `mcap = 5 x raisedNet`; derive the pool's starting tick/position
    config from it (see §6.1 — the one piece of real math to build).
 5. Deploy the LS via the Base LS1155 factory with
@@ -156,7 +159,10 @@ complexity-budget section.
 6. Call the Clanker v4 factory: vanilla config + DevBuy extension funded
    with `raisedNet` (recipient = BoughtStream), Vault extension at the
    1:1-equivalent bps (admin per §6.3), fee reward recipient = LS, stock
-   MEV module.
+   MEV module. **Admin role split (DD-7)**: tokenAdmin (metadata/image
+   class functions) = `launcher`; any admin that can CHANGE reward
+   recipients = the Party contract itself (immutable, no code path to use
+   it) or renounced — fees must be unredirectable. See §6.7.
 7. Arm the bought-coin stream (Splits Vesting, ~7d, beneficiary = LS).
 8. Emit `Launched(token, ls, mcap, raisedNet, units...)`. Nothing left to
    operate: State.Launched is terminal.
@@ -224,6 +230,14 @@ kind; custom Clanker extensions or LP routing; governance; upgradability
 6. **LS distribution cadence** — who calls the LS's distribute for fee/
    stream ERC20s (permissionless, but UX wants a "claim" button that
    batches distribute+withdraw).
+7. **Enumerate Clanker v4's admin surface field-by-field (DD-7).** v4
+   deployment config carries a tokenAdmin plus per-reward-recipient
+   admins. Confirm exactly which roles can: change reward recipients,
+   change metadata, touch extensions/MEV post-deploy. Assign
+   metadata-class roles to the launcher wallet; anything fee-routing must
+   land on the immutable Party (or address(0)) so "fees → LS forever" is
+   structural. This is the one place a wrong assignment silently breaks
+   the product's core promise.
 
 ## 7. References
 
